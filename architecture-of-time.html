@@ -1,0 +1,1297 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture of Time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;500;800&family=Miriam+Libre:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+
+
+
+
+
+
+  :root{
+    /* interface — fixed, never touched by answers */
+    --ink:#000000;
+    --gridline:rgba(255,255,255,.20);   /* general grid: dark grey */
+    --sheetline:rgba(255,255,255,.55);  /* the lines bounding the sheet: brighter */
+    --dot:#D6D6D6;
+
+    /* geometry: the sheet is 70% of viewport height and 18 x 26 interface cells.
+       one interface cell is exactly two of the sheet's own 36 x 52 cells, which is
+       what puts all four of its edges on grid lines (36 and 52 both divide by 2). */
+    /* 70% of the viewport height, but never so wide that it stops fitting,
+       so the sheet stays centred at every window size */
+    --sheet-h:min(70dvh, 74vw);
+    --sheet-w:calc(var(--sheet-h) * 900 / 1300);
+    --cell:calc(var(--sheet-w) / 18);
+    --sheet-x:calc((100vw - var(--sheet-w)) / 2);
+    --sheet-y:calc((100dvh - var(--sheet-h)) / 2);
+    --over:160px;                  /* world overscan, so panning never shows an edge */
+
+    --display:'Frank Ruhl Libre',Georgia,serif;
+    --ui:'Miriam Libre',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden}
+  body{background:var(--ink);font-family:var(--ui);line-height:1.5;-webkit-font-smoothing:antialiased}
+
+  /* the grid is the background of the whole interface. it is anchored to the
+     sheet's top-left corner, so the sheet sits inside it rather than on it. */
+  /* The stage. Holds the perspective; itself never moves. */
+  .surface{position:fixed;inset:0;background-color:var(--ink);
+           overflow:hidden;perspective:1500px;perspective-origin:50% 50%}
+
+  /* The world: everything that belongs to the board. Panned and tilted as one
+     piece, so the grid, the sheet and the dots can never drift apart.
+     Oversized by --over on every side, so panning never exposes an edge. */
+  /* NOT preserve-3d. Under preserve-3d the browser sorts these children by 3D
+     depth and ignores z-index, which makes hit-testing pick the wrong layer at
+     random. The world's own rotation still works because .surface holds the
+     perspective; the children only need to stay flat. */
+  .world{position:absolute;inset:calc(-1 * var(--over));z-index:1;
+         transform-style:flat;will-change:transform}
+
+  /* The grid runs unbroken to every edge — no mask, no fade. It covers the
+     world including the overscan, so panning never reveals a bare corner. */
+  .gridlayer{position:absolute;inset:0;z-index:0;
+    background-image:
+      linear-gradient(to right, var(--gridline) 0 1px, transparent 1px),
+      linear-gradient(to bottom, var(--gridline) 0 1px, transparent 1px);
+    background-size:var(--cell) var(--cell);
+    background-position:calc(var(--sheet-x) + var(--over)) calc(var(--sheet-y) + var(--over))}
+
+  /* Viewport-sized box inside the world, so every JS coordinate stays
+     viewport-relative exactly as before. */
+  /* No z-index: this must NOT become a stacking context, so its children can
+     interleave with the sheet lines that sit on the world. */
+  .stagebox{position:absolute;left:var(--over);top:var(--over);
+            width:100vw;height:100dvh}
+
+  /* Shading that belongs to the board: it sits above the grid but below the
+     sheet and the card, so content never gets dimmed by it. */
+  .vignette{position:absolute;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(ellipse 92% 92% at 50% 50%,
+      transparent 70%, rgba(0,0,0,.22) 100%)}
+
+  .dots{position:absolute;inset:0;pointer-events:none;z-index:4}
+  /* This layer covers the whole screen and sits above the card, so it MUST be
+     click-through. Only .qdot inside it takes pointer events. */
+  .dots-int{position:absolute;inset:0;z-index:6;pointer-events:none}
+  .dots svg,.dots-int svg{display:block;width:100%;height:100%}
+  .dots-int svg{pointer-events:none}
+
+  /* a question dot: ring = unanswered, disc = answered, pulse = do this next */
+  .qdot{pointer-events:auto;cursor:pointer;outline:none}
+  .qdot .hit{pointer-events:all}
+  .qdot .hit{fill:transparent}
+  /* THE CATALOGUE — unanswered: thin outline. answered: white fill. next: pulse. */
+  .qdot .core{fill:none;stroke:#FFFFFF;stroke-width:1.2;
+              transition:fill .2s ease,stroke-width .15s ease}
+  .qdot .core.filled{fill:#FFFFFF}
+  /* hover thickens the outline rather than filling it, so a fill keeps one meaning */
+  .qdot:not(.locked):hover .core{stroke-width:2.4}
+  .qdot.locked{pointer-events:none;cursor:default}
+  /* locked looks the same at rest — the pulse is what points the way — it just
+     does not answer the pointer */
+  .qdot:focus-visible .core{stroke-width:2.4}
+  .qdot .halo{fill:none;stroke:rgba(255,255,255,.4);stroke-width:1}
+  .qdot .pulse{fill:none;stroke:#FFFFFF;stroke-width:1.4;
+               transform-box:fill-box;transform-origin:center;
+               animation:ring 2.1s cubic-bezier(.2,.7,.3,1) infinite}
+  @keyframes ring{0%{transform:scale(1);opacity:.7}70%{opacity:0}100%{transform:scale(3);opacity:0}}
+
+  /* pointer-events off on the strip itself: it must never intercept a click
+     meant for a card that happens to sit under it. Only its link takes them. */
+  #status{pointer-events:none;position:absolute;left:max(16px, calc(1.6 * var(--cell)));bottom:max(14px, calc(1.3 * var(--cell)));z-index:8;
+          font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
+          color:rgba(255,255,255,.5)}
+  .statline{display:flex;align-items:center;gap:12px}
+  .sep{display:inline-block;width:14px;height:1px;background:rgba(255,255,255,.3)}
+  .build{opacity:.4}
+  .cue{animation:breathe 2.6s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:.45}50%{opacity:1}}
+  .linkbtn{pointer-events:auto;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
+        background:transparent;border:0;padding:0 0 1px;cursor:pointer;color:rgba(255,255,255,.8);
+        border-bottom:1px solid rgba(255,255,255,.45)}
+  .linkbtn:hover{color:#fff;border-bottom-color:#fff}
+  #reset{position:absolute;right:max(16px, calc(1.6 * var(--cell)));bottom:max(14px, calc(1.3 * var(--cell)));z-index:8;
+         font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
+         background:transparent;border:0;padding:0 0 1px;cursor:pointer;
+         color:rgba(255,255,255,.45);border-bottom:1px solid rgba(255,255,255,.25);
+         transition:color .15s,border-color .15s}
+  #reset:hover{color:#fff;border-bottom-color:#fff}
+  #reset:disabled{opacity:.3;cursor:default;border-bottom-color:transparent}
+  #reset:disabled:hover{color:rgba(255,255,255,.45)}
+
+  /* Placeholders, snapped to grid lines by placeChrome(). #logoBox is the
+     logo, #btnBox the second control. Drop real content inside either;
+     each is sized to 3 x 3 grid cells. */
+  .chrome{position:absolute;z-index:8;pointer-events:none}   /* below the card; inert for now */
+  #logoBox{background:#D6D6D6}
+  #btnBox{background:#969696}
+
+  /* the sheet */
+  #frame{position:absolute;z-index:2;left:var(--sheet-x);top:var(--sheet-y);
+         width:var(--sheet-w);height:var(--sheet-h)}
+
+  /* No frame: these ARE the four grid lines that fall on the sheet's edges,
+     drawn brighter than the rest of the grid. Add class "edge" to .sheet-lines
+     to clip them to the sheet instead of running the full width and height. */
+  /* These live on the world, not on the viewport-sized stage, so they run the
+     world's full extent — right through the overscan — and still reach the
+     screen edge however far the board has panned. */
+  .sheet-lines{position:absolute;inset:0;z-index:3;pointer-events:none}
+  .sheet-lines i{position:absolute;background:var(--sheetline)}
+  .sheet-lines .v{top:0;bottom:0;width:1px}
+  .sheet-lines .h{left:0;right:0;height:1px}
+  .sheet-lines .v1{left:calc(var(--sheet-x) + var(--over))}
+  .sheet-lines .v2{left:calc(var(--sheet-x) + var(--sheet-w) + var(--over))}
+  .sheet-lines .h1{top:calc(var(--sheet-y) + var(--over))}
+  .sheet-lines .h2{top:calc(var(--sheet-y) + var(--sheet-h) + var(--over))}
+  /* add class "edge" to clip them to the sheet instead of running full length */
+  .sheet-lines.edge .v{top:calc(var(--sheet-y) + var(--over));
+                       bottom:calc(100dvh - var(--sheet-y) - var(--sheet-h) + var(--over))}
+  .sheet-lines.edge .h{left:calc(var(--sheet-x) + var(--over));
+                       right:calc(100vw - var(--sheet-x) - var(--sheet-w) + var(--over))}
+  #frame svg{display:block;width:100%;height:100%}
+
+  /* questions arrive as a card floating on the surface, clear of the sheet */
+  .popup{
+    --fg:#111111; --dim:rgba(0,0,0,.52); --line:rgba(0,0,0,.16);
+    --surface:#FFFFFF; --accent:#111111; --picker:none;
+    position:absolute;z-index:5;
+    left:0;top:0;                      /* replaced by JS once a dot is chosen */
+    width:min(400px, 88vw);max-height:84dvh;
+    background:var(--surface);color:var(--fg);
+    padding:24px 24px 22px;overflow-y:auto;
+    box-shadow:0 24px 60px -18px rgba(0,0,0,.9);
+    transform-origin:top left;
+    opacity:0;visibility:hidden;pointer-events:none;
+  }
+  /* grows out of the dot it is pinned to */
+  .popup.open{opacity:1;visibility:visible;pointer-events:auto;
+              animation:pop .34s cubic-bezier(.2,.85,.25,1) both}
+  /* the card grows out of the dot it is pinned to */
+  @keyframes pop{from{opacity:0;transform:scale(.38)}to{opacity:1;transform:scale(1)}}
+
+  .eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;color:var(--dim);
+           text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;
+           border-bottom:1px solid var(--line);padding-bottom:9px;gap:12px}
+  .eyebrow-right{display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .reset{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
+         background:transparent;border:0;padding:0 0 1px;cursor:pointer;color:var(--dim);
+         border-bottom:1px solid var(--line);transition:color .15s,border-color .15s}
+  .reset:hover{color:var(--fg);border-bottom-color:var(--fg)}
+  .reset:focus-visible{outline:1px solid var(--fg);outline-offset:3px}
+  .reset:disabled{opacity:.35;cursor:default;border-bottom-color:transparent}
+  .reset:disabled:hover{color:var(--dim)}
+
+  .prog i{flex:1;height:1px;background:var(--line);transition:background .25s,height .25s}
+  .prog i.on{background:var(--fg);height:2px}
+  .prog i.cur{background:var(--accent);height:2px}
+  .prog s{width:12px;flex:none;height:1px;background:transparent}
+
+  #stepHost{display:block}
+  .q{margin:0}
+  @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .q h2{font-family:var(--display);font-weight:800;font-size:25px;line-height:1.14;
+        margin:16px 0 8px;letter-spacing:-.01em}
+  .q .hint{color:var(--dim);font-size:13px;line-height:1.45;margin:0 0 20px}
+
+  .shapes{display:flex;gap:8px}
+  .shapes button{flex:1;aspect-ratio:1;border:1px solid var(--line);background:transparent;
+                 cursor:pointer;display:flex;flex-direction:column;align-items:center;
+                 justify-content:center;gap:9px;transition:.18s;padding:8px}
+  .shapes button:hover{border-color:var(--fg)}
+  .shapes button svg{width:34px;height:34px}
+  .shapes button svg *{fill:var(--fg);transition:fill .18s}
+  .shapes button b{font-family:var(--mono);font-weight:400;font-size:8.5px;letter-spacing:.14em;
+                   text-transform:uppercase;color:var(--dim);transition:color .18s}
+  .shapes button[aria-pressed=true]{background:var(--fg);border-color:var(--fg)}
+  .shapes button[aria-pressed=true] svg *{fill:var(--surface)}
+  .shapes button[aria-pressed=true] b{color:var(--surface)}
+
+  .duo{display:flex;gap:8px}
+  .duo button{flex:1;padding:16px 14px;border:1px solid var(--line);background:transparent;
+              cursor:pointer;text-align:left;transition:.18s;color:var(--fg)}
+  .duo button:hover{border-color:var(--fg)}
+  .duo button strong{display:block;font-family:var(--display);font-weight:800;font-size:19px;margin-bottom:3px}
+  .duo button span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;line-height:1.4;
+                   text-transform:uppercase;color:var(--dim);transition:color .18s;display:block}
+  .duo button[aria-pressed=true]{background:var(--fg);border-color:var(--fg);color:var(--surface)}
+  .duo button[aria-pressed=true] span{color:var(--surface);opacity:.7}
+
+  .num{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+  .num input{width:104px;background:transparent;border:0;border-bottom:1px solid var(--fg);
+             font-family:var(--display);font-weight:800;font-size:50px;color:var(--fg);
+             padding:0;outline:none;text-align:center;-moz-appearance:textfield}
+  .num input::-webkit-outer-spin-button,.num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .num em{font-style:normal;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+          text-transform:uppercase;color:var(--dim)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;background:transparent;margin:4px 0;cursor:grab}
+  input[type=range]:active{cursor:grabbing}
+  input[type=range]::-webkit-slider-runnable-track{height:1px;background:var(--line)}
+  input[type=range]::-moz-range-track{height:1px;background:var(--line)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+    background:var(--fg);border:0;margin-top:-7px;transition:transform .12s}
+  input[type=range]:active::-webkit-slider-thumb{transform:scale(1.25)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:0;background:var(--fg);border:0}
+  input[type=range]:focus-visible::-webkit-slider-thumb{outline:1px solid var(--fg);outline-offset:3px}
+  .scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;
+         color:var(--dim);letter-spacing:.1em}
+
+  /* part one — kept in the code, parked until we decide where it goes */
+  .fields{display:flex;flex-direction:column;gap:18px}
+  .fld label{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+             text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+  .fld label span{text-transform:none;letter-spacing:.04em;opacity:.7}
+  .fld input{width:100%;background:transparent;border:0;border-bottom:1px solid var(--fg);
+             font-family:var(--display);font-weight:500;font-size:21px;color:var(--fg);
+             padding:3px 0;outline:none;-moz-appearance:textfield}
+  .fld input::-webkit-outer-spin-button,.fld input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .fld input::placeholder{color:var(--dim);opacity:.45}
+  .fld input:focus{border-bottom-width:2px}
+  .fld input:disabled{color:var(--dim);border-bottom-style:dotted}
+  .fld input[type=date]::-webkit-calendar-picker-indicator{filter:var(--picker);opacity:.55;cursor:pointer}
+  .fld .sub{font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:6px;
+            letter-spacing:.04em;min-height:13px}
+  .duo-fld{display:flex;gap:14px}
+  .duo-fld .fld{flex:1}
+
+  .nav{padding-top:20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .btn{font-family:var(--mono);font-weight:400;font-size:10.5px;letter-spacing:.16em;
+       text-transform:uppercase;padding:11px 18px;border:1px solid var(--fg);
+       background:var(--fg);color:var(--surface);cursor:pointer;transition:.18s}
+  .btn:hover{background:transparent;color:var(--fg)}
+  .btn.ghost{background:transparent;color:var(--dim);border-color:var(--line)}
+  .btn.ghost:hover{color:var(--fg);border-color:var(--fg)}
+  .btn:disabled{opacity:.3;cursor:not-allowed;background:transparent;color:var(--dim);border-color:var(--line)}
+  .btn:focus-visible,.shapes button:focus-visible,.duo button:focus-visible{outline:1px solid var(--accent);outline-offset:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+  .note{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.06em;margin-top:12px}
+  .collected{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+  .collected #saveNote{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.14em;
+                       text-transform:uppercase;color:var(--dim);margin-bottom:10px}
+  .caption{display:flex;justify-content:space-between;font-family:var(--mono);font-size:8.5px;
+           color:var(--dim);letter-spacing:.16em;text-transform:uppercase;
+           padding-top:16px;margin-top:16px;border-top:1px solid var(--line)}
+
+  /* not enough room beside the sheet — stack the card under it */
+  
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="surface">
+
+  <div class="world" id="world">
+    <div class="gridlayer"></div>
+    <div class="vignette"></div>
+    <div class="sheet-lines" id="sheetLines">
+      <i class="v v1"></i><i class="v v2"></i><i class="h h1"></i><i class="h h2"></i>
+    </div>
+    <div class="stagebox">
+      <div id="frame"></div>
+      <div class="dots" id="dots"></div>
+      <aside class="popup" aria-hidden="true" aria-live="polite">
+        <div id="cardBody"></div>
+      </aside>
+      <div class="dots-int" id="dotsInt"></div>
+    </div>
+  </div>
+
+  <!-- fixed chrome: not part of the board, never moves -->
+  <div class="chrome" id="logoBox"></div>
+  <div class="chrome" id="btnBox"></div>
+  <div id="status"></div>
+  <button type="button" id="reset" aria-label="Reset all answers">Reset</button>
+
+</div>
+
+<script>
+/* =====================================================================
+   ARCHITECTURE OF TIME
+
+   PART ONE  — profile: full name, date of birth (optional), age.
+               Today's date is available to every question via derive().
+   PART TWO  — questions drawn at random from QUESTION_BANK.
+
+   ADDING A QUESTION: append an entry to QUESTION_BANK below. Every entry
+   needs an id, a type, and a default (used when the draw skips it).
+   title / hint / min / max may each be a function receiving the derived
+   context D — that is how a question becomes relative to age or to today.
+   Set pinned:true on a question that must always be asked.
+   ===================================================================== */
+const BUILD='b291308';   // shown bottom-left, so you can confirm which build you are looking at
+const CONFIG = {
+  DATA_ENDPOINT: "",            // e.g. "https://hook.eu2.make.com/xxxxx"
+  POST_TO_PARENT: true,
+  QUESTIONS_PER_SESSION: 4,     // how many bank questions to draw
+  ASK_PROFILE: false,           // part one (name / date of birth / age) — parked for now
+  DOT_DENSITY: 260000,          // one scattered dot per this many px of surface
+  REQUIRE_DOB: false            // true = date of birth becomes mandatory
+};
+
+const VB={w:900,h:1300};
+const CENTER={x:450,y:700};
+const BALL=18, GAP=4, MINDIST=BALL*2+GAP+3;
+const MAX_BEADS=25;
+/* The sheet's grid shares the interface grid's cell and weight, but sits five
+   points brighter, so the sheet lifts very slightly off the field while still
+   reading as the same system. Its four bounding lines are brighter again. */
+const GRID_COLS=18;                        // same as the interface: the sheet is 18 cells wide
+const CELL=VB.w/GRID_COLS;                 // 50 units
+const GRID_ROWS=Math.round(VB.h/CELL);     // 26 rows, 1300/50
+const GRID_OPACITY=0.25;                   // 5 points above the interface grid's 0.20
+const GRID_STROKE=1.7;                     // ~1px on screen; crispEdges stops it being
+                                           // antialiased into a dimmer 2px smear
+/* the smoke pixel stays finer than a grid cell — half of one — so it remains
+   aligned at 2 x 2 per cell without becoming coarse */
+const SMOKE_COLS=36;
+const SMOKE_CELL=VB.w/SMOKE_COLS;          // 25 units
+const SMOKE_ROWS=Math.round(VB.h/SMOKE_CELL);
+const SMOKE='#6F6A62';
+
+const SHAPES={circle:{label:'Circle'},rectangle:{label:'Rectangle'},triangle:{label:'Triangle'}};
+const TOD={
+  night:  {label:'Night',   bg:'#000000', fg:'#FFFFFF', text:'#FFFFFF', soft:'#7A7A7A', grid:'#FFFFFF'},
+  morning:{label:'Morning', bg:'#FFFFFF', fg:'#F7CE1B', text:'#111111', soft:'#9A9A9A', grid:'#000000'}
+};
+
+/* ---------- helpers ---------- */
+function hash(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const pad2=v=>String(v).padStart(2,'0');
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const commas=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+const val=(x,D)=>typeof x==='function'?x(D):x;
+
+/* =====================================================================
+   STATE
+   ===================================================================== */
+const PROFILE_DEFAULTS={name:'',dob:'',age:''};
+const S={ ...PROFILE_DEFAULTS, answers:{}, reached:{}, done:{}, touched:{}, seed:0 };
+
+/* ---------------------------------------------------------------------
+   Derived context — everything relative to today's date lives here.
+   Add more fields as the bank grows; every question can read them.
+   --------------------------------------------------------------------- */
+function derive(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  let dob=null;
+  if(S.dob){ const d=new Date(S.dob+'T00:00:00'); if(!isNaN(d.getTime()) && d<=today) dob=d; }
+
+  let age=parseInt(S.age,10);
+  if(!Number.isFinite(age)) age=0;
+
+  let daysLived=null, daysToBirthday=null;
+  if(dob){
+    age=today.getFullYear()-dob.getFullYear();
+    const m=today.getMonth()-dob.getMonth();
+    if(m<0 || (m===0 && today.getDate()<dob.getDate())) age--;
+    daysLived=Math.floor((today-dob)/86400000);
+    const nb=new Date(today.getFullYear(),dob.getMonth(),dob.getDate());
+    if(nb<today) nb.setFullYear(nb.getFullYear()+1);
+    daysToBirthday=Math.round((nb-today)/86400000);
+  }
+  age=Math.max(0,Math.min(99,age));
+  const knownAge=!!dob || String(S.age)!=='';
+  return {today,dob,age,daysLived,daysToBirthday,ageFromDob:!!dob,knownAge};
+}
+
+/* =====================================================================
+   QUESTION BANK — part two draws from here
+   ===================================================================== */
+const QUESTION_BANK=[
+  {
+    id:'shape', type:'shapes', pinned:true, label:'Form', default:'circle',
+    title:'How do you picture time?',
+    hint:'Your choice becomes the central form on the poster.',
+    options:SHAPES,
+    display:v=>SHAPES[v].label
+  },
+  {
+    id:'tod', type:'duo', pinned:true, label:'Rhythm', default:'night',
+    title:'Are you a morning person or a night person?',
+    hint:'This sets the ground colour and the colour of the form.',
+    options:[['morning','Morning','White ground · yellow form'],
+             ['night','Night','Black ground · white form']],
+    display:v=>TOD[v].label
+  },
+  {
+    id:'maturity', type:'number', label:'Maturity', default:13, unit:'years',
+    title:'When did you finish growing up?',
+    hint:D=>'Every year drops one bead somewhere on the outline of your form.'
+           + (D.age && D.age<MAX_BEADS ? ' You are '+D.age+', so that is the ceiling.' : ''),
+    min:1,
+    max:D=>Math.max(1, Math.min(MAX_BEADS, D.age||MAX_BEADS)),
+    display:v=>pad2(v)+' yrs'
+  },
+  {
+    id:'smoke', type:'number', label:'Smoking', default:0, unit:'years',
+    when:D=>!D.knownAge || D.age>=18,   // never drawn for a minor; open when age is unknown
+    title:'How long have you been smoking?',
+    hint:D=>'Each year settles more square pixels over the poster. At '
+           + Math.max(1,Math.min(25,D.age||25))+' years they cover the whole sheet.',
+    min:0,
+    max:D=>Math.max(1, Math.min(25, D.age||25)),
+    display:v=>pad2(v)+' yrs'
+  }
+];
+const BANK=Object.fromEntries(QUESTION_BANK.map(q=>[q.id,q]));
+
+/* answer for a question, falling back to its default when it wasn't drawn */
+function ans(id){
+  const q=BANK[id];
+  return S.answers[id]!==undefined ? S.answers[id] : (q?q.default:undefined);
+}
+
+/* which questions this session asks.
+   `when` gates a question against the profile; pinned ones come first,
+   the rest are drawn with the session seed. Recomputed once part one is
+   done, so the draw sees the real age and today's date. */
+function pickQuestions(seed){
+  const D=derive();
+  const avail=QUESTION_BANK.filter(q=> q.when ? q.when(D) : true);
+  const pinned=avail.filter(q=>q.pinned);
+  const pool=avail.filter(q=>!q.pinned);
+  const rnd=mulberry32(seed>>>0);
+  for(let i=pool.length-1;i>0;i--){
+    const j=Math.floor(rnd()*(i+1));
+    const t=pool[i]; pool[i]=pool[j]; pool[j]=t;
+  }
+  const total=Math.min(Math.max(CONFIG.QUESTIONS_PER_SESSION,pinned.length), avail.length);
+  return pinned.concat(pool.slice(0, total-pinned.length));
+}
+let ASKED=[];
+
+/* =====================================================================
+   Geometry
+   ===================================================================== */
+function geometry(kind){
+  const {x:cx,y:cy}=CENTER;
+  if(kind==='circle') return {type:'circle',cx,cy,r:264};
+  if(kind==='rectangle'){
+    const w=596,h=358;
+    return {type:'poly',pts:[[cx,cy-h/2],[cx+w/2,cy-h/2],[cx+w/2,cy+h/2],[cx-w/2,cy+h/2],[cx-w/2,cy-h/2]]};
+  }
+  const w=612,h=520;
+  return {type:'poly',pts:[[cx,cy-h/2],[cx+w/2,cy+h/2],[cx-w/2,cy+h/2]]};
+}
+function onOutline(G,u){
+  if(G.type==='circle'){
+    const a=2*Math.PI*u-Math.PI/2;
+    return [G.cx+G.r*Math.cos(a), G.cy+G.r*Math.sin(a)];
+  }
+  const pts=G.pts, segs=[]; let total=0;
+  for(let i=0;i<pts.length;i++){
+    const a=pts[i], b=pts[(i+1)%pts.length];
+    const L=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    segs.push({a,b,L}); total+=L;
+  }
+  let d=(((u%1)+1)%1)*total;
+  for(const s of segs){
+    if(d<=s.L){ const k=s.L?d/s.L:0; return [s.a[0]+(s.b[0]-s.a[0])*k, s.a[1]+(s.b[1]-s.a[1])*k]; }
+    d-=s.L;
+  }
+  return pts[0];
+}
+
+/* beads: irregular scatter, placed sequentially so raising the answer
+   ADDS a bead rather than reshuffling the ones already down */
+let beadCache={key:'',pts:[]};
+function beadPositions(shape,seed){
+  const key=shape+'|'+seed;
+  if(beadCache.key===key) return beadCache.pts;
+  const G=geometry(shape), rnd=mulberry32((seed^hash(shape))>>>0), pts=[];
+  for(let i=0;i<MAX_BEADS;i++){
+    let best=null,bestD=-1,placed=false;
+    for(let a=0;a<220;a++){
+      const p=onOutline(G,rnd());
+      let d=Infinity;
+      for(const q of pts) d=Math.min(d,Math.hypot(p[0]-q[0],p[1]-q[1]));
+      if(d>bestD){bestD=d;best=p;}
+      if(d>=MINDIST){pts.push(p);placed=true;break;}
+    }
+    if(!placed) pts.push(best);
+  }
+  beadCache={key,pts};
+  return pts;
+}
+
+/* smoke: fixed shuffled cell order, revealed progressively, on the base grid */
+let smokeCache={seed:-1,cells:[]};
+function smokeCells(seed){
+  if(smokeCache.seed===seed) return smokeCache.cells;
+  const cells=[];
+  for(let r=0;r<SMOKE_ROWS;r++) for(let c=0;c<SMOKE_COLS;c++)
+    cells.push('<rect x="'+(c*SMOKE_CELL)+'" y="'+(r*SMOKE_CELL)+'" width="'+SMOKE_CELL+'" height="'+SMOKE_CELL+'"/>');
+  const rnd=mulberry32((seed^0x9E3779B9)>>>0);
+  for(let i=cells.length-1;i>0;i--){
+    const j=Math.floor(rnd()*(i+1));
+    const t=cells[i]; cells[i]=cells[j]; cells[j]=t;
+  }
+  smokeCache={seed,cells};
+  return cells;
+}
+function smokeLayer(years,maxYears,seed){
+  if(years<=0) return '';
+  const f=Math.min(1, years/Math.max(1,maxYears));
+  if(f>=1)   // full sheet — one rect instead of every cell
+    return '<rect width="'+VB.w+'" height="'+VB.h+'" fill="'+SMOKE+'" opacity="0.5"/>';
+  const cells=smokeCells(seed);
+  return '<g fill="'+SMOKE+'" opacity="0.5">'+cells.slice(0,Math.round(cells.length*f)).join('')+'</g>';
+}
+
+/* base grid — bottom layer, drawn straight onto the ground */
+function gridLayer(C){
+  return '<defs><pattern id="baseGrid" width="'+CELL+'" height="'+CELL+'" patternUnits="userSpaceOnUse">'
+       + '<path d="M '+CELL+' 0 L 0 0 0 '+CELL+'" fill="none" stroke="'+C.grid+'"'
+       + ' stroke-width="'+GRID_STROKE+'" shape-rendering="crispEdges"/>'
+       + '</pattern></defs>'
+       + '<rect width="'+VB.w+'" height="'+VB.h+'" fill="url(#baseGrid)" opacity="'+GRID_OPACITY+'"/>';
+}
+function shapeMarkup(G,fill){
+  if(G.type==='circle') return '<circle cx="'+G.cx+'" cy="'+G.cy+'" r="'+G.r+'" fill="'+fill+'"/>';
+  return '<polygon points="'+G.pts.map(p=>p[0]+','+p[1]).join(' ')+'" fill="'+fill+'"/>';
+}
+
+/* =====================================================================
+   SVG
+   ===================================================================== */
+function buildSVG(){
+  const D=derive();
+  const shape=ans('shape'), C=TOD[ans('tod')] || TOD.night;
+  const G=geometry(shape);
+
+  const beadMax=BANK.maturity ? val(BANK.maturity.max,D) : MAX_BEADS;
+  const beads=Math.max(1,Math.min(MAX_BEADS,Math.round(ans('maturity'))||1));
+  const smokeMax=BANK.smoke ? val(BANK.smoke.max,D) : 25;
+  const smoke=Math.max(0,Math.min(smokeMax,Math.round(ans('smoke'))||0));
+
+  let beadMarkup='';
+  if(S.reached.maturity){
+    for(const p of beadPositions(shape,S.seed).slice(0,Math.min(beads,beadMax))){
+      beadMarkup+='<circle cx="'+p[0].toFixed(2)+'" cy="'+p[1].toFixed(2)+'" r="'+BALL+'"'
+                + ' fill="'+C.fg+'" stroke="'+C.bg+'" stroke-width="'+GAP+'"/>';
+    }
+  }
+
+  const t=D.today;
+  const today=pad2(t.getDate())+'.'+pad2(t.getMonth()+1)+'.'+t.getFullYear();
+
+  /* identity block — this is where today's date shows its work */
+  const name=(S.name||'').trim();
+  const nameSize=name.length>22?32:name.length>14?42:54;
+  let ident='';
+  if(D.age) ident+='AGE '+pad2(D.age);
+  if(D.dob) ident+=' · BORN '+pad2(D.dob.getDate())+'.'+pad2(D.dob.getMonth()+1)+'.'+D.dob.getFullYear();
+  if(D.daysLived!=null) ident+=' · '+commas(D.daysLived)+' DAYS';
+
+  /* footer fills in as questions are reached — never shows an unasked default */
+  let footer='';
+  ASKED.filter(q=>S.reached[q.id]).slice(0,4).forEach((q,i)=>{
+    const x=84+i*184;
+    footer+='<text x="'+x+'" y="1186" fill="'+C.soft+'" class="mono" font-size="10.5" letter-spacing="2.4">'+q.label.toUpperCase()+'</text>';
+    footer+='<text x="'+x+'" y="1218" fill="'+C.text+'" class="disp" font-weight="800" font-size="25">'+esc(q.display(ans(q.id)))+'</text>';
+  });
+
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+VB.w+' '+VB.h+'" width="'+VB.w+'" height="'+VB.h+'">'
+    + '<style>.disp{font-family:"Frank Ruhl Libre",Georgia,serif}.mono{font-family:"IBM Plex Mono",monospace}</style>'
+    + '<rect width="'+VB.w+'" height="'+VB.h+'" fill="'+C.bg+'"/>'
+    + gridLayer(C)
+    + '<text x="84" y="106" fill="'+C.soft+'" class="mono" font-size="11.5" letter-spacing="3.4">ARCHITECTURE OF TIME</text>'
+    + '<text x="816" y="106" text-anchor="end" fill="'+C.soft+'" class="mono" font-size="11.5" letter-spacing="2.4">'+today+'</text>'
+    + '<line x1="84" y1="126" x2="816" y2="126" stroke="'+C.soft+'" stroke-width="0.75" opacity="0.5"/>'
+    + (name?'<text x="84" y="196" fill="'+C.text+'" class="disp" font-weight="800" font-size="'+nameSize+'">'+esc(name)+'</text>':'')
+    + (ident?'<text x="84" y="228" fill="'+C.soft+'" class="mono" font-size="11.5" letter-spacing="2.2">'+ident+'</text>':'')
+    + shapeMarkup(G,C.fg) + beadMarkup
+    + '<line x1="84" y1="1150" x2="816" y2="1150" stroke="'+C.soft+'" stroke-width="0.75" opacity="0.5"/>'
+    + footer
+    + smokeLayer(smoke,smokeMax,S.seed)
+    + '</svg>';
+}
+
+/* =====================================================================
+   Interface — the dots are the questions.
+
+   Each drawn question owns a dot on the grid. Nothing is open until a
+   dot is clicked; the card then pins a corner to that dot and grows out
+   of it. The dots themselves carry the progress: a ring is unanswered,
+   a filled disc is answered, and the next one to do pulses.
+   ===================================================================== */
+const frame=document.getElementById('frame');
+const card=document.querySelector('.popup');
+const cardBody=document.getElementById('cardBody');
+const dotsDeco=document.getElementById('dots');
+const dotsInt=document.getElementById('dotsInt');
+const statusBar=document.getElementById('status');
+const logoBox=document.getElementById('logoBox');
+const btnBox=document.getElementById('btnBox');
+const resetBtn=document.getElementById('reset');
+
+/* The sheet measured from layout, NOT from getBoundingClientRect. The world
+   layer carries a 3D transform, and a measured rect would come back tilted and
+   panned, dragging every dot and card position with it. offsetLeft/Top/Width/
+   Height are layout values and ignore transforms. */
+function sheetRect(){
+  const l=frame.offsetLeft, t=frame.offsetTop, w=frame.offsetWidth, h=frame.offsetHeight;
+  return {left:l, top:t, width:w, height:h, right:l+w, bottom:t+h};
+}
+
+const QDOT_R=9;            // a question dot
+const CARD_MAX_H=520;      // worst-case card height, used when siting question dots
+const EDGE=14;
+const CORNERS=[['top left',1,1],['top right',-1,1],['bottom left',1,-1],['bottom right',-1,-1]];
+
+const cardWidth=()=>Math.round(Math.min(400, 0.88*window.innerWidth));
+
+let DOTS=[], openQ=null, pinnedQ=null, finished=false, rafId=null;
+/* The card's laid-out box, recorded by placeCard. Do NOT measure the card with
+   getBoundingClientRect for this: the open animation scales it from 0.38, so a
+   measurement taken mid-animation reports a box far smaller than the real one,
+   and dots that end up under the card are missed. */
+let cardBox=null;
+/* openQ   = the question being answered (null on the finish card)
+   pinnedQ = the dot the card physically hangs from — tracked separately so
+             the anchor dot stays visible even when no question is open */
+
+/* ---------- which questions are done ---------- */
+const isDone=id=>!!S.done[id];
+const allDone=()=>ASKED.every(q=>isDone(q.id));
+/* The questions are scattered, but they keep a general order: at any moment the
+   next TWO unanswered ones are open, so there is always a choice of where to go.
+   Anything further along stays locked; anything answered can be revisited. */
+const OPEN_AHEAD=2;
+const availableQs=()=>ASKED.filter(q=>!isDone(q.id)).slice(0,OPEN_AHEAD).map(q=>q.id);
+const canOpen=id=>isDone(id)||availableQs().includes(id);
+
+/* Can the card hang off this point and land on screen? Clearing the sheet is
+   preferred but not always possible on a small window, so it is optional. */
+/* the fixed corner squares paint above the board, so on the strict pass the
+   card must stay out from under them too */
+function chromeBoxes(){
+  return [logoBox,btnBox,statusBar,resetBtn].filter(Boolean)
+         .map(el=>el.getBoundingClientRect()).filter(b=>b.width>0);
+}
+function fitAt(d,cw,ch,vw,vh,f,mayOverlapSheet){
+  const avoid = mayOverlapSheet ? [] : chromeBoxes();
+  for(const [origin,sx,sy] of CORNERS){
+    const left = sx>0 ? d.x : d.x-cw;
+    const top  = sy>0 ? d.y : d.y-ch;
+    if(left<EDGE || top<EDGE || left+cw>vw-EDGE || top+ch>vh-EDGE) continue;
+    if(!mayOverlapSheet &&
+       left<f.right+8 && left+cw>f.left-8 && top<f.bottom+8 && top+ch>f.top-8) continue;
+    if(avoid.some(b=>left<b.right+6 && left+cw>b.left-6 && top<b.bottom+6 && top+ch>b.top-6)) continue;
+    return {origin,left,top};
+  }
+  return null;
+}
+
+/* ---------------------------------------------------------------------
+   The two corner squares. The grid is anchored to the sheet's centre, so
+   the screen edge does not land on a line — we find the grid's phase and
+   snap each square to the nearest lines, 3 x 3 cells each.
+   --------------------------------------------------------------------- */
+const CHROME_CELLS=3;
+function placeChrome(){
+  const vw=window.innerWidth;
+  const f=sheetRect();
+  const cell=f.width/18;
+  const phaseX=((f.left%cell)+cell)%cell;       // first vertical line at or after x=0
+  const phaseY=((f.top%cell)+cell)%cell;        // first horizontal line at or after y=0
+  const size=CHROME_CELLS*cell;
+  const lastLineX=phaseX+Math.floor((vw-phaseX)/cell)*cell;   // last line at or before the right edge
+
+  /* assigned unrounded: rounding to whole or even 2dp pushes them off the line */
+  logoBox.style.left=phaseX+'px';
+  logoBox.style.top=phaseY+'px';
+  btnBox.style.left=(lastLineX-size)+'px';
+  btnBox.style.top=phaseY+'px';
+  for(const el of [logoBox,btnBox]){
+    el.style.width=size+'px';
+    el.style.height=size+'px';
+  }
+}
+
+/* ---------- lay out the dot field ---------- */
+function computeDots(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const f=sheetRect();
+  const cell=f.width/18;   // the sheet is 18 interface cells wide
+  const pad=el=>{const b=el.getBoundingClientRect();
+                 return {l:b.left-10, r:b.right+10, t:b.top-10, b:b.bottom+10};};
+  const keepOut=[
+    {l:f.left-12, r:f.right+12, t:f.top-12, b:f.bottom+12},   // the sheet
+    pad(logoBox), pad(btnBox),                                // the corner squares
+    {l:0, r:13*cell, t:vh-3.2*cell, b:vh},                    // status strip
+    {l:vw-7*cell, r:vw, t:vh-3.2*cell, b:vh}                  // reset
+  ];
+  const cw=cardWidth();
+  const ch=Math.min(CARD_MAX_H, Math.round(0.84*vh));   // CSS caps the card at 84dvh
+  const tight=vw<820 || vh<620;                     // little room beside the sheet
+  const gap=tight?26:46;
+  const rnd=mulberry32(hash('dots|'+S.seed));
+  DOTS=[];
+  const clear=(x,y,r,pad)=>!keepOut.some(z=>x>z.l-r&&x<z.r+r&&y>z.t-r&&y<z.b+r)
+                       && !DOTS.some(d=>Math.hypot(d.x-x,d.y-y)<d.r+r+(pad||(tight?20:30)));
+
+  /* one dot per question. first choice is a spot where the card clears the
+     sheet; on a cramped window we settle for one where it merely fits. */
+  for(const q of ASKED){
+    let strict=null, loose=null, any=null;
+    for(let t=0;t<1400 && !strict;t++){
+      const x=QDOT_R+16+rnd()*(vw-2*QDOT_R-32);
+      const y=QDOT_R+16+rnd()*(vh-2*QDOT_R-32);
+      if(!clear(x,y,QDOT_R,gap)) continue;
+      if(!any) any={x,y};
+      if(fitAt({x,y},cw,ch,vw,vh,f,false)) strict={x,y};
+      else if(!loose && fitAt({x,y},cw,ch,vw,vh,f,true)) loose={x,y};
+    }
+    /* last resort: ignore the keep-out zones rather than leave a question
+       with no dot, because a dot with no question attached is unopenable */
+    if(!strict && !loose && !any){
+      for(let t=0;t<400 && !any;t++){
+        const x=QDOT_R+16+rnd()*(vw-2*QDOT_R-32);
+        const y=QDOT_R+16+rnd()*(vh-2*QDOT_R-32);
+        if(!DOTS.some(d=>Math.hypot(d.x-x,d.y-y)<d.r+QDOT_R+14)) any={x,y};
+      }
+    }
+    const hit=strict||loose||any;
+    if(hit) DOTS.push({x:hit.x,y:hit.y,r:QDOT_R,qid:q.id});
+  }
+
+  /* the rest are quiet marks on the grid */
+  const extra=Math.max(2,Math.min(16,Math.round(vw*vh/CONFIG.DOT_DENSITY)));
+  for(let i=0,t=0;i<extra && t<extra*100;t++){
+    const bright=rnd()<0.16;
+    const r=4.5+rnd()*2+(bright?1.5:0);
+    const x=r+12+rnd()*(vw-2*r-24), y=r+12+rnd()*(vh-2*r-24);
+    if(!clear(x,y,r)) continue;
+    DOTS.push({x,y,r,qid:null,bright}); i++;
+  }
+}
+
+/* ---------- draw the dots ---------- */
+function renderDots(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const wrap=inner=>'<svg viewBox="0 0 '+vw+' '+vh+'" preserveAspectRatio="none">'+inner+'</svg>';
+  const c=card.classList.contains('open') ? cardBox : null;
+  const buried=d=>c && d.qid!==pinnedQ &&
+    d.x>c.left-d.r && d.x<c.right+d.r && d.y>c.top-d.r && d.y<c.bottom+d.r;
+
+  dotsDeco.innerHTML=wrap(DOTS.filter(d=>!d.qid && !buried(d)).map(d=>
+    '<circle cx="'+d.x.toFixed(1)+'" cy="'+d.y.toFixed(1)+'" r="'+d.r.toFixed(1)+'"'
+    + ' fill="'+(d.bright?'#FFFFFF':'var(--dot)')+'" opacity="'+(d.bright?1:.62)+'"/>').join(''));
+
+  const avail=availableQs();
+  dotsInt.innerHTML=wrap(DOTS.filter(d=>d.qid).map(d=>{
+    if(buried(d)) return '';
+    const q=BANK[d.qid];
+    const open=d.qid===pinnedQ, done=isDone(d.qid);
+    const up=avail.includes(d.qid) && !open;      // one of the two next up
+    const locked=!canOpen(d.qid);
+    /* three states, and only three: thin outline = unanswered, white fill =
+       answered, pulse = next up. "open" adds a halo but never changes the
+       fill, so a filled dot always means the question has been answered. */
+    let g='<g class="qdot'+(open?' is-open':'')+(locked?' locked':'')+'" data-qid="'+d.qid+'"'
+        + (locked?'':' tabindex="0" role="button"')
+        + ' aria-label="'+(q?q.title.replace(/"/g,''):d.qid)+(locked?' (locked)':'')+'">';
+    if(up) g+='<circle class="pulse" cx="'+d.x.toFixed(1)+'" cy="'+d.y.toFixed(1)+'" r="'+(d.r+2)+'"/>';
+    if(open) g+='<circle class="halo" cx="'+d.x.toFixed(1)+'" cy="'+d.y.toFixed(1)+'" r="'+(d.r+7)+'"/>';
+    /* generous target when shut; shrunk while its card is open, so it cannot
+       swallow clicks meant for the controls near the card's pinned corner */
+    g+='<circle class="hit" cx="'+d.x.toFixed(1)+'" cy="'+d.y.toFixed(1)+'" r="'+(open?d.r+2:d.r+13)+'"/>';
+    g+='<circle class="core'+(done?' filled':'')+'" cx="'+d.x.toFixed(1)+'" cy="'+d.y.toFixed(1)
+      +'" r="'+d.r+'"/>';
+    return g+'</g>';
+  }).join(''));
+}
+
+/* ---------- open / close ---------- */
+function placeCard(){
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const f=sheetRect();
+  const d=DOTS.find(x=>x.qid===pinnedQ);
+  const cw=card.offsetWidth||cardWidth(), ch=card.offsetHeight;
+  const settle=(l,t,origin)=>{
+    card.style.left=Math.round(l)+'px';
+    card.style.top=Math.round(t)+'px';
+    card.style.transformOrigin=origin;
+    cardBox={left:Math.round(l),top:Math.round(t),right:Math.round(l)+cw,bottom:Math.round(t)+ch};
+  };
+  if(!d){
+    settle(Math.max(EDGE,(vw-cw)/2), Math.max(EDGE,(vh-ch)/2), 'center');
+    return;
+  }
+  const fit = fitAt(d,cw,ch,vw,vh,f,false)      // clear of the sheet if possible
+           || fitAt(d,cw,ch,vw,vh,f,true)       // otherwise just on screen
+           || fitAt(d,cw,Math.min(ch,vh-2*EDGE),vw,vh,f,true);
+  if(fit) settle(fit.left, fit.top, fit.origin);
+  else    settle(Math.max(EDGE,(vw-cw)/2), Math.max(EDGE,(vh-ch)/2), 'center');
+}
+
+function openQuestion(id){
+  if(!BANK[id] || !canOpen(id)) return;
+  openQ=id; pinnedQ=id;
+  S.reached[id]=true;              // the sheet starts responding right away
+  /* register the standing value so the record is explicit rather than implied
+     by a fallback; S.touched tells us whether the person actually chose */
+  if(S.answers[id]===undefined) S.answers[id]=BANK[id].default;
+  finished=false;
+  renderCard();
+  card.classList.add('open');
+  card.setAttribute('aria-hidden','false');
+  placeCard();
+  card.style.animation='none'; void card.offsetWidth; card.style.animation='';
+  holdWorld(true);
+  renderDots();
+  draw();
+  const first=card.querySelector('button,input');
+  if(first) setTimeout(()=>first.focus(),80);
+}
+
+function closeCard(markDone){
+  if(markDone && openQ) S.done[openQ]=true;
+  openQ=null; pinnedQ=null; finished=false; cardBox=null;
+  card.classList.remove('open');
+  card.setAttribute('aria-hidden','true');
+  holdWorld(false);
+  renderDots(); renderStatus(); draw();
+}
+
+function showFinish(){
+  openQ=null; finished=true;
+  /* the finish card grows out of the last dot that was answered */
+  const last=ASKED[ASKED.length-1];
+  pinnedQ = DOTS.find(x=>x.qid===last.id) ? last.id : ((DOTS.find(x=>x.qid)||{}).qid || null);
+  renderCard();
+  card.classList.add('open');
+  card.setAttribute('aria-hidden','false');
+  placeCard();
+  card.style.animation='none'; void card.offsetWidth; card.style.animation='';
+  holdWorld(true);
+  renderDots(); renderStatus(); draw(); submit('complete');
+}
+
+/* ---------- controls ---------- */
+const ICON={
+  circle:'<circle cx="26" cy="26" r="24"/>',
+  rectangle:'<rect x="1" y="12" width="50" height="28"/>',
+  triangle:'<polygon points="26,2 51,48 1,48"/>'
+};
+function ctrlShapes(q){
+  const el=document.createElement('div'); el.className='shapes';
+  Object.keys(q.options).forEach(k=>{
+    const b=document.createElement('button');
+    b.type='button';
+    b.innerHTML='<svg viewBox="0 0 52 52" aria-hidden="true">'+ICON[k]+'</svg><b>'+q.options[k].label+'</b>';
+    b.setAttribute('aria-pressed',String(ans(q.id)===k));
+    b.setAttribute('aria-label',q.options[k].label);
+    b.addEventListener('click',()=>{
+      S.answers[q.id]=k; S.touched[q.id]=true; draw();
+      [...el.children].forEach(c=>c.setAttribute('aria-pressed',String(c===b)));
+    });
+    el.appendChild(b);
+  });
+  return el;
+}
+function ctrlDuo(q){
+  const el=document.createElement('div'); el.className='duo';
+  q.options.forEach(([k,t,sub])=>{
+    const b=document.createElement('button');
+    b.type='button';
+    b.innerHTML='<strong>'+t+'</strong><span>'+sub+'</span>';
+    b.setAttribute('aria-pressed',String(ans(q.id)===k));
+    b.addEventListener('click',()=>{
+      S.answers[q.id]=k; S.touched[q.id]=true; draw();
+      [...el.children].forEach(c=>c.setAttribute('aria-pressed',String(c===b)));
+    });
+    el.appendChild(b);
+  });
+  return el;
+}
+function ctrlNumber(q){
+  const D=derive();
+  const min=val(q.min,D), max=val(q.max,D);
+  const start=Math.max(min,Math.min(max,Math.round(ans(q.id))));
+  S.answers[q.id]=start;
+  const el=document.createElement('div');
+  el.innerHTML=
+    '<div class="num"><input type="number" min="'+min+'" max="'+max+'" step="1" value="'+start+'"><em>'+(q.unit||'')+'</em></div>'+
+    '<input type="range" min="'+min+'" max="'+max+'" step="1" value="'+start+'">'+
+    '<div class="scale"><span>'+pad2(min)+'</span><span>'+pad2(max)+'</span></div>';
+  const num=el.querySelector('input[type=number]'), rng=el.querySelector('input[type=range]');
+  num.setAttribute('aria-label',q.unit||'Value'); rng.setAttribute('aria-label',q.unit||'Value');
+  const set=(v,syncNum)=>{
+    const n=Math.max(min,Math.min(max,Math.round(v)||0));
+    S.answers[q.id]=n; S.touched[q.id]=true; rng.value=n; if(syncNum) num.value=n; draw();
+  };
+  rng.addEventListener('input',()=>set(+rng.value,true));
+  num.addEventListener('input',()=>{ if(num.value!=='') set(+num.value,false); });
+  num.addEventListener('blur',()=>{ num.value=S.answers[q.id]; });
+  num.addEventListener('keydown',e=>{ if(e.key==='Enter'){ num.blur(); advance(); } });
+  return el;
+}
+const CONTROLS={shapes:ctrlShapes, duo:ctrlDuo, number:ctrlNumber};
+
+/* ---------- card contents ---------- */
+function renderCard(){
+  const D=derive();
+  cardBody.innerHTML='';
+  const box=document.createElement('div');
+  box.className='q';
+
+  if(finished){
+    const summary=ASKED.map(q=>q.label+' '+q.display(ans(q.id))).join(' · ');
+    box.innerHTML='<h2>Your poster is ready.</h2><p class="hint">'+esc(summary)+'.</p>'+
+      '<div class="row">'+
+        '<button class="btn" id="dlPng" type="button">Download PNG</button>'+
+        '<button class="btn ghost" id="dlSvg" type="button">SVG for print</button>'+
+      '</div>'+
+      '<div class="collected">'+
+        '<span id="saveNote">Response saved \u00b7 '+RESPONSES.length+' collected'+
+          (CONFIG.DATA_ENDPOINT?' \u00b7 sent to endpoint':' \u00b7 no endpoint set')+'</span>'+
+        '<div class="row">'+
+          '<button class="btn ghost" id="cpJson" type="button">Copy JSON</button>'+
+          '<button class="btn ghost" id="dlCsv" type="button">All responses (CSV)</button>'+
+        '</div>'+
+      '</div>';
+    cardBody.appendChild(box);
+    box.querySelector('#dlPng').addEventListener('click',exportPNG);
+    box.querySelector('#dlSvg').addEventListener('click',exportSVG);
+    box.querySelector('#dlCsv').addEventListener('click',()=>downloadResponses('csv'));
+    box.querySelector('#cpJson').addEventListener('click',async e=>{
+      const ok=await copyPayload();
+      e.target.textContent = ok ? 'Copied' : 'Logged to console';
+      setTimeout(()=>{ e.target.textContent='Copy JSON'; },1600);
+    });
+    const foot=document.createElement('div');
+    foot.className='nav';
+    const close=document.createElement('button');
+    close.className='btn ghost'; close.type='button'; close.textContent='Close';
+    close.addEventListener('click',()=>closeCard(false));
+    foot.appendChild(close);
+    cardBody.appendChild(foot);
+    return;
+  }
+
+  const q=BANK[openQ];
+  if(!q) return;
+  const idx=ASKED.findIndex(x=>x.id===openQ);
+  box.innerHTML=
+    '<div class="eyebrow"><span>'+esc(q.label)+'</span>'
+    + '<span class="eyebrow-right">'+pad2(idx+1)+' / '+pad2(ASKED.length)+'</span></div>'
+    + '<h2>'+val(q.title,D)+'</h2><p class="hint">'+val(q.hint,D)+'</p>';
+  box.appendChild(CONTROLS[q.type](q));
+  cardBody.appendChild(box);
+
+  const foot=document.createElement('div');
+  foot.className='nav';
+  const done=document.createElement('button');
+  done.className='btn'; done.type='button';
+  const remaining=ASKED.filter(x=>!isDone(x.id) && x.id!==openQ).length;
+  done.textContent = remaining===0 ? 'Create poster' : 'Done';
+  done.addEventListener('click',advance);
+  foot.appendChild(done);
+
+  const dismiss=document.createElement('button');
+  dismiss.className='btn ghost'; dismiss.type='button'; dismiss.textContent='Close';
+  dismiss.addEventListener('click',()=>closeCard(false));
+  foot.appendChild(dismiss);
+  cardBody.appendChild(foot);
+}
+
+/* Done: bank the answer, close, and invite the next dot */
+function advance(){
+  const wasLast=ASKED.filter(x=>!isDone(x.id) && x.id!==openQ).length===0;
+  if(openQ) S.done[openQ]=true;
+  if(wasLast){ showFinish(); return; }        // showFinish submits 'complete'
+  submit('partial');                          // captured even if they stop here
+  closeCard(false);
+}
+
+/* ---------- status strip, bottom left ---------- */
+function renderStatus(){
+  const done=ASKED.filter(q=>isDone(q.id)).length;
+  const bits=[];
+  bits.push('<span class="build">'+BUILD+'</span>');
+  if(done===0) bits.push('<span class="cue">Click a pulsing point to begin</span>');
+  else bits.push('<span>'+pad2(done)+' of '+pad2(ASKED.length)+' answered</span>');
+  if(!allDone() && done>0) bits.push('<span>'+availableQs().length+' open</span>');
+  if(allDone() && !finished) bits.push('<button class="linkbtn" id="mkPoster" type="button">Create poster</button>');
+  statusBar.innerHTML='<span class="statline">'+bits.join('<i class="sep"></i>')+'</span>';
+  const mk=document.getElementById('mkPoster');
+  if(mk) mk.addEventListener('click',showFinish);
+  resetBtn.disabled = done===0 && Object.keys(S.answers).length===0 && !finished;
+}
+
+/* ---------- poster ---------- */
+function draw(){
+  if(rafId) return;
+  rafId=requestAnimationFrame(()=>{ rafId=null; frame.innerHTML=buildSVG(); });
+}
+
+function newSeed(){
+  S.seed=(Math.random()*0xFFFFFFFF)>>>0;
+  beadCache={key:'',pts:[]};
+  smokeCache={seed:-1,cells:[]};
+  ASKED=pickQuestions(S.seed);
+}
+
+/* ---------- reset ---------- */
+function resetAll(){
+  S.answers={}; S.reached={}; S.done={}; S.touched={}; lastSig='';
+  Object.assign(S,PROFILE_DEFAULTS);
+  openQ=null; pinnedQ=null; finished=false; cardBox=null;
+  card.classList.remove('open');
+  card.setAttribute('aria-hidden','true');
+  newSeed();
+  relayout();
+}
+resetBtn.addEventListener('click',resetAll);
+
+/* ---------------------------------------------------------------------
+   Making the board feel physical: the world pans and tilts a little with
+   the pointer, so moving right reveals more space on the right. The logo
+   squares, the status strip and reset sit outside the world and never move.
+   Motion is eased toward its target rather than snapped, and it freezes
+   while a card is open so the controls stay still under the cursor.
+   --------------------------------------------------------------------- */
+const MOTION = {
+  pan: 1.5,        // how many grid cells the world may slide each way
+  tilt: 1.15,      // degrees of rotation each way
+  ease: 0.075      // 0 = never arrives, 1 = snaps
+};
+const world=document.getElementById('world');
+const still=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let aimX=0, aimY=0, curX=0, curY=0, follow=true, motionRAF=null;
+
+function pointerAim(e){
+  if(!follow) return;
+  aimX=(e.clientX/window.innerWidth)*2-1;      // -1 .. 1
+  aimY=(e.clientY/window.innerHeight)*2-1;
+  if(!motionRAF) motionRAF=requestAnimationFrame(driftWorld);
+}
+function driftWorld(){
+  motionRAF=null;
+  curX+=(aimX-curX)*MOTION.ease;
+  curY+=(aimY-curY)*MOTION.ease;
+  const cell=sheetRect().width/18 || 24;
+  const dx=-curX*MOTION.pan*cell;               // pointer right -> world slides left
+  const dy=-curY*MOTION.pan*cell;
+  world.style.transform=
+    'translate3d('+dx.toFixed(2)+'px,'+dy.toFixed(2)+'px,0)'+
+    ' rotateY('+(curX*MOTION.tilt).toFixed(3)+'deg)'+
+    ' rotateX('+(-curY*MOTION.tilt).toFixed(3)+'deg)';
+  if(Math.abs(aimX-curX)>0.0005||Math.abs(aimY-curY)>0.0005)
+    motionRAF=requestAnimationFrame(driftWorld);
+}
+if(!still){
+  window.addEventListener('pointermove',pointerAim,{passive:true});
+  window.addEventListener('pointerleave',()=>{ if(follow){ aimX=aimY=0;
+    if(!motionRAF) motionRAF=requestAnimationFrame(driftWorld); } });
+}
+/* Hold the board still while a question is open. Clearing `follow` alone is not
+   enough: the easing would keep travelling toward the last aim. Park the target
+   on the current value so it stops exactly where it stands. */
+const holdWorld=on=>{
+  follow=!on;
+  if(on){ aimX=curX; aimY=curY; }
+};
+
+/* ---------- wiring ---------- */
+function relayout(){
+  placeChrome();
+  computeDots();
+  if(pinnedQ||finished) placeCard();
+  renderDots(); renderStatus(); draw();
+}
+/* clicking a dot toggles its card open and shut */
+function toggleQuestion(id){
+  if(!canOpen(id)) return;
+  if(openQ===id || (finished && pinnedQ===id)) closeCard(false);
+  else openQuestion(id);
+}
+dotsInt.addEventListener('click',e=>{
+  const g=e.target.closest('.qdot');
+  if(g) toggleQuestion(g.dataset.qid);
+});
+dotsInt.addEventListener('keydown',e=>{
+  if(e.key!=='Enter' && e.key!==' ') return;
+  const g=e.target.closest('.qdot');
+  if(g){ e.preventDefault(); toggleQuestion(g.dataset.qid); }
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && (openQ||finished)) closeCard(false); });
+let resizeT=null;
+window.addEventListener('resize',()=>{ clearTimeout(resizeT); resizeT=setTimeout(relayout,140); });
+
+/* =====================================================================
+   Data collection
+
+   Three destinations, all optional and independent:
+     1. A webhook. Set CONFIG.DATA_ENDPOINT, or append ?endpoint=https://...
+        to the page URL to test one without editing the file.
+     2. The browser itself. Every response is kept in localStorage so they
+        accumulate while you test, and can be exported as JSON or CSV.
+     3. postMessage to the parent frame, for when this is embedded.
+   submit() runs after every answer, so a response that is abandoned
+   half-way through is still captured.
+   ===================================================================== */
+const STORE_KEY='timeArch.responses';
+let RESPONSES=[];
+try{ RESPONSES=JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }catch(e){ RESPONSES=[]; }
+function persist(){
+  try{ localStorage.setItem(STORE_KEY,JSON.stringify(RESPONSES)); }catch(e){}
+}
+try{
+  const ep=new URLSearchParams(location.search).get('endpoint');
+  if(ep && /^https:\/\//.test(ep)) CONFIG.DATA_ENDPOINT=ep;
+}catch(e){}
+
+function payload(status){
+  const D=derive();
+  const answers={}, touched={};
+  ASKED.forEach(q=>{ answers[q.id]=ans(q.id); touched[q.id]=!!S.touched[q.id]; });
+  return {
+    type:'timeArch',
+    status,                                  // 'partial' | 'complete'
+    id:'TA-'+S.seed.toString(16).toUpperCase().slice(0,6),
+    at:new Date().toISOString(),
+    seed:S.seed,
+    profile:{
+      name:S.name.trim()||null,
+      date_of_birth:S.dob||null,
+      age:D.age||null,
+      age_source:D.knownAge?(D.ageFromDob?'date_of_birth':'entered'):null
+    },
+    context:{
+      today:D.today.toISOString().slice(0,10),
+      days_lived:D.daysLived,
+      days_to_birthday:D.daysToBirthday,
+      viewport:window.innerWidth+'x'+window.innerHeight
+    },
+    asked:ASKED.map(q=>q.id),
+    answered:ASKED.filter(q=>isDone(q.id)).map(q=>q.id),
+    answers,
+    touched                                  // did the person actually choose, or is this the standing value
+  };
+}
+
+let lastPayload=null, lastSig='';
+function submit(status){
+  const data=payload(status||'partial');
+  lastPayload=data;
+  /* skip a resubmit that carries nothing new */
+  const sig=data.status+'|'+JSON.stringify(data.answers)+'|'+JSON.stringify(data.answered);
+  if(sig===lastSig) return data;
+  lastSig=sig;
+
+  /* one record per session, updated in place as answers come in */
+  const at=RESPONSES.findIndex(r=>r.seed===data.seed);
+  if(at>=0) RESPONSES[at]=data; else RESPONSES.push(data);
+  persist();
+
+  if(CONFIG.POST_TO_PARENT && window.parent!==window){
+    try{ window.parent.postMessage(data,'*'); }catch(e){}
+  }
+  if(CONFIG.DATA_ENDPOINT){
+    fetch(CONFIG.DATA_ENDPOINT,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    }).catch(err=>console.warn('[timeArch] endpoint failed:',err));
+  }
+  console.log('[timeArch]',data.status,data.id,data.answers);
+  renderStatus();
+  return data;
+}
+
+/* ---- export what has been collected ---- */
+function responsesCSV(){
+  const ids=[...new Set(RESPONSES.flatMap(r=>r.asked))];
+  const head=['id','status','at','seed','name','date_of_birth','age','age_source',
+              'days_lived','days_to_birthday','viewport',
+              ...ids, ...ids.map(i=>i+'_touched')];
+  const cell=v=>{
+    if(v===null||v===undefined) return '';
+    const t=String(v);
+    return /[",\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t;
+  };
+  const rows=RESPONSES.map(r=>[
+    r.id,r.status,r.at,r.seed,r.profile.name,r.profile.date_of_birth,r.profile.age,r.profile.age_source,
+    r.context.days_lived,r.context.days_to_birthday,r.context.viewport,
+    ...ids.map(i=>r.answers?r.answers[i]:''),
+    ...ids.map(i=>r.touched?r.touched[i]:'')
+  ].map(cell).join(','));
+  return [head.join(','),...rows].join('\n');
+}
+function downloadResponses(kind){
+  if(kind==='csv') download(new Blob([responsesCSV()],{type:'text/csv;charset=utf-8'}),'time-responses.csv');
+  else download(new Blob([JSON.stringify(RESPONSES,null,2)],{type:'application/json'}),'time-responses.json');
+}
+async function copyPayload(){
+  const text=JSON.stringify(lastPayload||payload('partial'),null,2);
+  try{ await navigator.clipboard.writeText(text); return true; }
+  catch(e){ console.log(text); return false; }
+}
+
+/* ---------- export ---------- */
+const fileBase=()=>'time-'+((S.name.trim()||'poster').replace(/\s+/g,'-').toLowerCase());
+function download(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1200);
+}
+function exportSVG(){ download(new Blob([buildSVG()],{type:'image/svg+xml'}), fileBase()+'.svg'); }
+
+let fontCSSCache=null;
+async function fontCSS(){
+  if(fontCSSCache!==null) return fontCSSCache;
+  try{
+    const url='https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@800&family=IBM+Plex+Mono:wght@400&display=swap';
+    const css=await (await fetch(url)).text();
+    const urls=[...css.matchAll(/url\((https:\/\/[^)]+\.woff2)\)/g)].map(m=>m[1]);
+    let out=css;
+    for(const u of urls){
+      const bytes=new Uint8Array(await (await fetch(u)).arrayBuffer());
+      let bin=''; for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+      out=out.split(u).join('data:font/woff2;base64,'+btoa(bin));
+    }
+    fontCSSCache=out;
+  }catch(e){ fontCSSCache=''; }
+  return fontCSSCache;
+}
+async function exportPNG(){
+  const btn=document.getElementById('dlPng'), old=btn.textContent;
+  btn.textContent='Exporting…'; btn.disabled=true;
+  try{
+    const css=await fontCSS();
+    let svg=buildSVG();
+    if(css) svg=svg.replace('<style>',()=>'<style>'+css);
+    const img=new Image(), scale=2.6;
+    const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));
+    await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
+    const c=document.createElement('canvas');
+    c.width=VB.w*scale; c.height=VB.h*scale;
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    URL.revokeObjectURL(url);
+    c.toBlob(b=>{ if(b) download(b, fileBase()+'.png'); },'image/png');
+  }catch(e){ exportSVG(); }
+  finally{ btn.textContent=old; btn.disabled=false; }
+}
+
+
+/* ---------- boot ---------- */
+newSeed();
+relayout();
+</script>
+</body>
+</html>
