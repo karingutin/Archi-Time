@@ -1,0 +1,4 @@
+- [Architecture of Time — question bank method](architecture_of_time_question_bank_method.md) — agreed method for the 21-question bank (categories, interaction types, session rules)
+- [Feedback: iterative clarification](feedback_iterative_clarification.md) — user wants many rounds of clarifying questions before a creative draft
+- [Feedback: amorphous question style](feedback_amorphous_question_style.md) — poetic/perceptual binaries, not literal opposites like hot/cold, with confirmed examples
+- [Feedback: concise Hebrew](feedback_concise_hebrew.md) — answer short and in Hebrew, not long English reports
