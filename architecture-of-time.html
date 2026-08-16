@@ -5310,12 +5310,26 @@ function renderSnake(){
 
   /* The trail: every question behind us EXCEPT the one being shown. Keyed on
      each question's own state rather than on "index below the cursor", so a
-     revisit keeps the whole trail drawn instead of truncating it. */
+     revisit keeps the whole trail drawn instead of truncating it.
+
+     BEHIND US MEANS REACHED, NOT BANKED. This tested isDone alone, and isDone
+     is only true once Next has been pressed — so the question you were LOOKING
+     at when you jumped back up the trail matched neither branch: no longer the
+     current one, never banked. Its marker simply vanished and the run showed a
+     hole where it had been (go to five, click two, and the 5 is gone). Reaching
+     a question is what puts it behind you; banking it is a different fact.
+     Both are tested because they are not nested: Save sets done and keeps
+     reached, but SKIP sets done and DELETES reached (see step()), so neither
+     one alone covers the trail. */
   for(let n=0;n<ASKED.length;n++){
-    if(n===cur || !isDone(ASKED[n].id)) continue;
-    const q=ASKED[n], F=snakeFigure(n);
+    const q=ASKED[n];
+    if(n===cur || !(isDone(q.id) || S.reached[q.id])) continue;
+    const F=snakeFigure(n);
+    /* only claim it was answered if it actually was — a question left open and
+       stepped away from is on the trail, but nothing was banked for it */
+    const state=isDone(q.id) ? ' (answered)' : '';
     html+='<div class="qstep past" data-qid="'+q.id+'" tabindex="0" role="button"'
-        + ' aria-label="'+pad2(n+1)+' of '+pad2(ASKED.length)+'. '+esc(q.title)+' (answered)"'
+        + ' aria-label="'+pad2(n+1)+' of '+pad2(ASKED.length)+'. '+esc(q.title)+state+'"'
         + ' style="'+cssBox(cellBox(F.step))+';font-size:'+(0.33*c).toFixed(1)+'px">'
         + (n+1)+'</div>';
   }
