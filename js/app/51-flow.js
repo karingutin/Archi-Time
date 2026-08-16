@@ -47,19 +47,26 @@ function showFinish(){
   renderFinish.shown=false;           // re-arm the arrival stagger
   /* THE ONE REDRAW, and it is the record's text rather than the poster's marks:
      the two durations and the timestamp are only knowable at this press, so the
-     band has to be re-set with them before anything is shown. Not the marks —
-     the making WAS finished when the last answer landed. */
+     band has to be re-set with them before the sheet reaches it. Not the marks —
+     the making WAS finished when the last answer landed, and the artwork is not
+     touched here or anywhere else in the ending. */
   stampRecord();
   drawNow();
-  /* AND THE CLASS GOES ON AFTER THAT PAINT, not with it. The retreat is a CSS
-     transition on the group that was just written into the DOM; setting the
-     class in the same frame gives the browser one element with one computed
-     transform and nothing to move from, and the artwork would jump back rather
-     than travel. Two frames is imperceptible and is the whole of the fix. */
-  const turn=()=>document.body.classList.add('made');
-  if(reduceMotion && reduceMotion()) turn();
-  else requestAnimationFrame(()=>requestAnimationFrame(turn));
+  growSheet();
+  document.body.classList.add('made');
   renderSnake(); renderStatus(); submit('complete');
+}
+
+/* THE SHEET LENGTHENING, armed for the length of the movement and no longer.
+   #frame's height also changes on a window resize, where it must be instant, so
+   the transition lives on a class rather than on the rule — exactly the way
+   .morphing arms the format change (see the CSS on .world.growing). */
+let growTimer=null;
+function growSheet(){
+  if(reduceMotion && reduceMotion()) return;
+  world.classList.add('growing');
+  clearTimeout(growTimer);
+  growTimer=setTimeout(()=>{ growTimer=null; world.classList.remove('growing'); }, FLIP_MS+40);
 }
 
 /* Back out of it. The ground comes back and the tenth question is standing

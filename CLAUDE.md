@@ -47,8 +47,12 @@ place. Do not reproduce the raw px offsets.
 
 ## Where things live
 
-`architecture-of-time.html` is now a ~150-line shell: the `<head>`, the body markup, and
+`index.html` is now a ~150-line shell: the `<head>`, the body markup, and
 an ordered list of `<link>` and `<script src>` tags. The code sits beside it:
+
+(It was `architecture-of-time.html` until the site went up on GitHub Pages, which
+serves `index.html` at `/`. [SPLIT_PLAN.md](SPLIT_PLAN.md) still calls it by the
+old name because it is a record of what was done at the time.)
 
 - `css/` — four files, `00-ground` → `30-questions`.
 - `js/` — `00-core.js` and `10-bank.js`, then `js/poster/` (one file per generated

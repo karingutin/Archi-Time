@@ -31,7 +31,7 @@ relayout();
    would silently rob every visitor of the opening. A query string cannot
    travel by accident.
 
-   file:///.../architecture-of-time.html?skip                                */
+   https://karingutin.github.io/Archi-Time/?skip                             */
 const SKIP_OPENING=/(^|[?&])skip(=|&|$)/.test(location.search);
 if(SKIP_OPENING){
   skipOpening();

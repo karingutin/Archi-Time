@@ -168,15 +168,21 @@ const recordLine=()=>recordItems().join(' \\\\ ');
    size as a long one, which is what keeps a series of posters looking like a
    series.
    --------------------------------------------------------------------- */
+/* THE SIZE IS SET BY WHAT THE BAND CAN HOLD, and the two rows are fixed, so the
+   only way to make the type bigger is to let it use more of them. Four lines
+   across the full width, rather than three inside a margin, is what took it from
+   barely readable to read-at-a-glance (Karin, 17 Aug): a run of about 340
+   characters over four lines is 85 to a line, and 85 characters of Helvetica
+   caps across thirteen cells lands near a quarter of a cell. Five lines would be
+   bigger again and would not fit the two rows. */
 const REC={
-  rows:2,          /* the band, in grid cells of the sheet */
-  inset:1,         /* left and right, in cells — the artwork's own margin */
-  fs:0.16,         /* nominal type size, in cells */
-  lh:1.5,          /* line pitch, in em */
+  inset:0.5,       /* left and right, in cells — the record's own margin */
+  fs:0.25,         /* nominal type size, in cells */
+  lh:1.45,         /* line pitch, in em */
   track:0.02,      /* letter-spacing, in em */
   cap:0.717,       /* Helvetica cap height, em — the same figure the word layer uses */
-  lines:3,         /* the most lines the band will take */
-  min:0.09,        /* and the size it will not shrink past, in cells */
+  lines:4,         /* the most lines the band will take */
+  min:0.12,        /* and the size it will not shrink past, in cells */
   write:900        /* how long the run takes to be written, first letter to last */
 };
 const REC_FACE='Helvetica, \'Helvetica Neue\', Arial, sans-serif';
@@ -206,21 +212,21 @@ function recFit(text,W,c){
   }
   return {fs,lines};
 }
-/* The band. Two rows of the sheet, full width, opaque paper, with the run set
-   flush left in the same column the artwork stands in.
+/* The band. The two rows PAST the artwork's foot — bandY is B.h, the sheet's
+   old bottom edge — full width, on the same paper.
 
    EVERY LETTER ITS OWN TSPAN, carrying the moment it lands (--gd) — the word
    layer's mechanic, and here for the same reason: the record should read as
    being PRINTED, left to right, rather than switched on. In the export these
    are inert (no <style> is emitted), so a saved file simply shows the finished
    run, which is the only thing a still of it should show. */
-function recordLayer(B,C){
+function recordLayer(B,C,bandH){
   const text=recordLine(); if(!text) return '';
   const c=B.w/B.cols;
   const W=(B.cols-2*REC.inset)*c;
   const fit=recFit(text,W,c);
   const fs=fit.fs, lines=fit.lines, lh=fs*REC.lh, cap=fs*REC.cap;
-  const bandH=REC.rows*c, bandY=B.h-bandH;
+  const bandY=B.h;
   /* the block is centred in the band: its ink runs from the first line's cap to
      the last line's baseline, and that is what is centred, not the line boxes */
   const blockH=(lines.length-1)*lh+cap;
@@ -234,40 +240,13 @@ function recordLayer(B,C){
            + (n<2?0:(gi++/(n-1))*REC.write).toFixed(1)+'ms">'+esc(ch)+'</tspan>').join('')
        + '</text>';
   });
-  /* #0C55FF is the blue ink ROLE, not a blue: inkedMarkup swaps it for whatever
+  /* NO MAT. The sheet's own paper rect already runs the full length of the
+     poster, band included (see buildSVG), and the artwork stops dead at the
+     band's top edge because that edge IS the artwork's box. There is nothing
+     down here to cover.
+     #0C55FF is the blue ink ROLE, not a blue: inkedMarkup swaps it for whatever
      the colourway put in that role, so the record recolours with the sheet. */
-  return '<g class="record">'
-    + '<rect class="rec-mat" x="0" y="'+bandY.toFixed(1)+'" width="'+B.w+'" height="'+(bandH+1).toFixed(1)+'" fill="'+C.bg+'"/>'
-    + '<g class="rec-set" fill="#0C55FF" font-family="'+REC_FACE.replace(/'/g,'&apos;')+'"'
+  return '<g class="record" fill="#0C55FF" font-family="'+REC_FACE.replace(/'/g,'&apos;')+'"'
     +   ' font-weight="400" font-size="'+fs.toFixed(1)+'"'
-    +   ' letter-spacing="'+(fs*REC.track).toFixed(2)+'">'+body+'</g>'
-    + '</g>';
+    +   ' letter-spacing="'+(fs*REC.track).toFixed(2)+'">'+body+'</g>';
 }
-
-/* ---------------------------------------------------------------------
-   THE RETREAT.
-
-   Making the poster steps the artwork back: one cell in from the top, the left
-   and the right, so a margin of paper opens on three sides and the band takes
-   the fourth. ONE FACTOR ON BOTH AXES — insetting a cell on each side
-   separately would be 12/14 across and 18/20 down, and every circle on the
-   sheet would come out an ellipse.
-
-   The numbers are handed to CSS rather than baked into the markup, which is
-   what lets showFinish keep its one good property: it asks for no redraw, the
-   class it already sets supplies the transform, and the transition runs off the
-   element that was painted long before. px inside an SVG resolve as user units,
-   so the translate is the sheet's own cell.
-   --------------------------------------------------------------------- */
-function syncRetreat(){
-  const F=FMT();
-  root.style.setProperty('--art-t', CELL+'px');
-  root.style.setProperty('--art-s', ((F.cols-2*REC.inset)/F.cols).toFixed(5));
-}
-/* The same transform as an attribute, for the EXPORT — a saved SVG carries no
-   stylesheet, so anything CSS is holding has to be written into the file. */
-const retreatAttr=F=>{
-  F=F||FMT();
-  return ' transform="translate('+CELL+' '+CELL+') scale('
-       + ((F.cols-2*REC.inset)/F.cols).toFixed(5)+')"';
-};

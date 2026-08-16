@@ -1,15 +1,18 @@
 /* =====================================================================
    SVG
    ===================================================================== */
-/* `baked` is for the EXPORT and nothing else. A saved SVG carries no
-   stylesheet, so the one thing CSS is holding for the live board — the
-   artwork's retreat once the poster is made (see syncRetreat) — has to be
-   written into the file as an attribute instead. Everything else in here is
-   already self-contained; the record's own write-in animation is inert in an
-   export the same way the word layer's is. */
-function buildSVG(F,baked){
+function buildSVG(F){
   const B=box(F);
   const C=PAPER;
+  /* THE SHEET IS ALWAYS THE LONG ONE HERE, made or not. B is the ARTWORK's box
+     and stays exactly what it was — every layer measures itself against it, and
+     not one of them may notice that anything has changed. The record's two rows
+     are added to the viewBox alone, below the artwork, and the frame's overflow
+     is what decides whether they are showing yet (see #frame, syncSheet).
+     So there is no second markup for the ending and nothing to bake for the
+     export: the file that is saved is the sheet that is on screen. */
+  const RECH=RECORD_ROWS*(B.w/B.cols);
+  const VH=B.h+RECH;
   const smokeMax=25;
   const smoke=smokeFromAnswers();
 
@@ -37,15 +40,11 @@ function buildSVG(F,baked){
      shape question, each mark arrives when the person puts it there, and a
      skipped question leaves nothing behind rather than quietly printing its
      default. */
-  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+B.w+' '+B.h+'"'
-    + ' width="'+B.w+'" height="'+B.h+'" preserveAspectRatio="none">'
-    + '<rect width="'+B.w+'" height="'+B.h+'" fill="'+C.bg+'"/>'
-    /* EVERYTHING DRAWN SITS IN ONE GROUP, and it is that group the retreat
-       moves — the grid, the marks and the smoke step back together, because
-       they are the artwork and the artwork is one thing. The paper rect above
-       is deliberately outside it: the sheet does not retreat, the picture on it
-       does, and the margin that opens is that rect showing through. */
-    + '<g class="pageout"'+(baked && posterDone ? retreatAttr(F) : '')+'>'
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+B.w+' '+VH+'"'
+    + ' width="'+B.w+'" height="'+VH+'" preserveAspectRatio="none">'
+    /* the paper runs the whole length, artwork and record together: it is one
+       sheet, and the band is the end of it rather than a strip stuck on */
+    + '<rect width="'+B.w+'" height="'+VH+'" fill="'+C.bg+'"/>'
     + (isChosen('shape') ? '<g class="hl" data-q="basegrid" style="pointer-events:none">'+baseGridLayer(C,B)+'</g>' : '')
     /* the answered layers live in .art so a hovered one can be picked out and the
        rest dimmed (see the .hl hover rules). Each layer is a single child of .art;
@@ -99,15 +98,12 @@ function buildSVG(F,baked){
        are kept (unwired) like smoke, so the layer can be brought back with one
        line if it is ever wanted again. happiness now records but draws nothing. */
     + smokeLayer(smoke,smokeMax,S.seed,B)
-    + '</g>'
-    /* THE RECORD, outside the retreat and last of all: it is not part of the
-       picture, it is what the picture was answered from. Its mat is opaque
-       paper, so whatever the artwork still has down there is covered rather
-       than clipped — one fewer format-keyed clip path (see the two-plies note
-       on barLayer), and the same thing to look at.
-       Always in the markup, hidden by CSS until body.made — which is what lets
-       showFinish go on asking for no redraw. */
-    + recordLayer(B,C)
+    /* THE RECORD, last of all and below everything: it is not part of the
+       picture, it is what the picture was answered from. It sits in the two
+       rows past the artwork's foot from the first paint of the session and is
+       simply not showing — the frame is not that tall yet. Which is what lets
+       showFinish keep asking for no redraw of the marks. */
+    + recordLayer(B,C,RECH)
     + '</svg>';
   /* THE COLOURWAY recolours the whole sheet: the last question maps the poster's
      two ink roles to the chosen pair. red-role = every #F5242B, blue-role = every

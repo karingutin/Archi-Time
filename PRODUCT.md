@@ -35,7 +35,7 @@ Sessions are freely repeatable — a visitor can return, answer differently, and
 
 ## Capabilities and Constraints
 
-- Single-file implementation: `architecture-of-time.html`. Full-screen app, `html,body{overflow:hidden}` — there is no scrolling page.
+- Implementation: `index.html` plus `css/` and `js/` (see CLAUDE.md). Full-screen app, `html,body{overflow:hidden}` — there is no scrolling page.
 - Interaction types in the bank: duo (binary), position-on-axis, numeric scrubber, card choice, intensity gauge, and a semicircle clock dial.
 - Skip is available on every question and leaves a visible mark on the poster, distinct from an unasked question. Exception: neither question in a branch pair may be skipped.
 - Branching is allowed — a question can appear or change based on an earlier answer in the same session. Branch pairs are always presented back-to-back and the linkage is never disclosed to the visitor.
@@ -48,14 +48,14 @@ Sessions are freely repeatable — a visitor can return, answer differently, and
 ## Brand Commitments
 
 - Name: **Architecture of Time**.
-- Incumbent visual system in `architecture-of-time.html` is design authority: black ground `#000000`, a grid that never moves or changes scale, a "sheet" that snaps between poster formats along grid lines, and a pale morning yellow `#F3E09B` marking settled answers.
+- Incumbent visual system in `index.html` is design authority: black ground `#000000`, a grid that never moves or changes scale, a "sheet" that snaps between poster formats along grid lines, and a pale morning yellow `#F3E09B` marking settled answers.
 - Typefaces already committed: Frank Ruhl Libre (display), Miriam Libre (UI), IBM Plex Mono (mono).
 - No content boundaries on question topics. Loss, addiction, and suicidal ideation are all in scope where they serve the piece.
 - The opening screen deliberately carries **no** content warning. The skip affordance inside the interface does that work; a warning up front would pre-frame the piece as heavy.
 
 ## Evidence on Hand
 
-- `architecture-of-time.html` — the working piece, incumbent visual authority.
+- `index.html` — the working piece, incumbent visual authority.
 - `nine-questions-prototype.html` — prototype for the extra-questions stage.
 - `base-questions-flow-summary.md`, `base-questions-interaction-spec.md` — confirmed specs for the 3 base questions.
 - `shapes/` — 9 SVGs: day-split-to-2 through 6, repetition-1 through 4.

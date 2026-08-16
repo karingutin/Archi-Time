@@ -3,7 +3,8 @@
 
    Three destinations, all optional and independent:
      1. A webhook. Set CONFIG.DATA_ENDPOINT, or append ?endpoint=https://...
-        to the page URL to test one without editing the file.
+        to the page URL to test one without editing the file. The query-string
+        form is honoured on a local server only — see the note below.
      2. The browser itself. Every response is kept in localStorage so they
         accumulate while you test, and can be exported as JSON or CSV.
      3. postMessage to the parent frame, for when this is embedded.
@@ -16,7 +17,15 @@ try{ RESPONSES=JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }catch(e){ RES
 function persist(){
   try{ localStorage.setItem(STORE_KEY,JSON.stringify(RESPONSES)); }catch(e){}
 }
-try{
+/* ?endpoint= is a testing convenience and it stays one: it is read on a local
+   server and nowhere else. The site is public now, and on a public URL the
+   parameter is a link anyone can craft that makes the page post a visitor's
+   answers to a host of the sender's choosing. Only the visitor's own session
+   is at stake, but there is no reason for the door to be there in production.
+   To point the live site at a webhook, set CONFIG.DATA_ENDPOINT in the source. */
+const LOCAL=/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)
+         || location.protocol==='file:';
+if(LOCAL) try{
   const ep=new URLSearchParams(location.search).get('endpoint');
   if(ep && /^https:\/\//.test(ep)) CONFIG.DATA_ENDPOINT=ep;
 }catch(e){}
@@ -150,12 +159,12 @@ function download(blob,name){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1200);
 }
-/* EVERY EXPORT IS BAKED. The board's finished state is half held by CSS — the
-   artwork's retreat once the poster is made — and a saved file carries no
-   stylesheet, so the flag is what writes that transform into the markup. Pass
-   it or the exported sheet comes out full-bleed with the record printed over
-   the bottom of the artwork. */
-function exportSVG(){ download(new Blob([buildSVG(null,true)],{type:'image/svg+xml'}), fileBase()+'.svg'); }
+/* NOTHING TO BAKE. The finished sheet is not a CSS state of the poster — the
+   record is in the markup and in the viewBox from the first paint, and what the
+   ending changes is the FRAME it is seen through (see #frame). So the file that
+   is written here is the whole sheet, artwork and record together, which is what
+   a poster is. */
+function exportSVG(){ download(new Blob([buildSVG()],{type:'image/svg+xml'}), fileBase()+'.svg'); }
 
 /* No font embedding step: the poster carries no text, so there is nothing to
    embed. This used to fetch Google Fonts and base64-inline two woff2 files on
@@ -173,13 +182,16 @@ async function exportRaster(kind,btn){
   const old=btn?btn.textContent:'';
   if(btn){ btn.textContent='Saving…'; btn.disabled=true; }
   try{
-    const svg=buildSVG(null,true);        // baked — see exportSVG
+    const svg=buildSVG();
     const img=new Image(), scale=2.6;
     const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));
     await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
     const c=document.createElement('canvas');
     const B=box();                       // the current format's own pixel box
-    c.width=B.w*scale; c.height=B.h*scale;
+    /* ...plus the record's two rows, which are part of the sheet and not part of
+       the artwork's box. Sizing the canvas off B alone would crop the band off
+       the bottom of every PNG and JPEG while the SVG kept it. */
+    c.width=B.w*scale; c.height=(B.h+RECORD_ROWS*(B.w/B.cols))*scale;
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
     URL.revokeObjectURL(url);
     const jpg=kind==='jpg';
