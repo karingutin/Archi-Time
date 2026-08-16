@@ -87,6 +87,18 @@
     --sheet-h:600px;
     --sheet-x:510px;
     --sheet-y:150px;
+    /* The made sheet, the poster layer's own height, and the depth of the cut
+       that holds the data row off the foot of the sheet until it is earned.
+       DECLARED HERE AND NOT ONLY IN JS, unlike the five above, and the reason is
+       what happens when one of them is missing rather than stale. A stale
+       --sheet-w is a poster the wrong size for one frame. A missing --sheet-cut
+       makes `clip-path:inset(0 0 var(--cut) 0)` an invalid declaration, which
+       does not clip a little — it does not clip AT ALL, and the record shows
+       itself in full on a sheet nobody has finished yet. So there is always a
+       number here to fall back on, and it is one row of the default cell. */
+    --sheet-hm:620px;
+    --ply-h:620px;
+    --sheet-cut:20px;
     --over:160px;                  /* world overscan, so panning never shows an edge */
     --morph:620ms;
     /* HOW LONG THE BOARD TAKES TO TURN OVER. It started at --morph's own 620,
