@@ -44,3 +44,8 @@ Rules that follow from it:
 
 When a design comes from Figma, convert its px measurements to cell counts first, then
 place. Do not reproduce the raw px offsets.
+
+## Git checkpoints
+
+Before and after every major change, ask whether to commit and push, to save the
+current state to Git so we can revert to it when needed.

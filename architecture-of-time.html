@@ -37,7 +37,7 @@
     /* Measured off the question-system mock: #2F2F2F on black. Deliberately
        dimmer than the .20 white it was — the snake and its panel are what the
        eye should find on this ground, and a brighter lattice competed. */
-    --gridline:#B7B7B7;   /* light grey, Karin 16 Aug — was #D7D4CC */
+    --gridline:#D7D4CC;
     --sheetline:rgba(0,0,0,.34);        /* the lines bounding the sheet: darker */
     --dot:#D6D6D6;
 
@@ -139,54 +139,6 @@
       linear-gradient(to bottom, var(--gridline) 0 1px, transparent 1px);
     background-size:var(--cell) var(--cell);
     background-position:calc(50vw + var(--over)) calc(50dvh + var(--over))}
-
-  /* THE FOREGROUND GRID. Karin's rule, 16 Aug: the lattice should show THROUGH
-     the question numbers and their panels — not just have them snapped to it,
-     the lines themselves cross visibly over the white card — everywhere
-     EXCEPT the poster itself, which must stay clean.
-
-     Same pattern as .gridlayer (identical background-image/size/position, so
-     the lines it draws are pixel-perfect continuations of the base grid, not
-     a second misaligned lattice), but on top: z-index 6 clears #qsys (5), so
-     every panel, hint, control and step number gets crossed by it, and ties
-     with .dots-int (6) — later in the DOM here, so it wins that tie and also
-     crosses the answered-question dots. It stays below #mkPoster (7),
-     #status/#reset (8) and the format switcher (9), which were never part of
-     this request, and, because .world itself is only one stacking level (1)
-     against .surface's other children, it can never reach above them anyway.
-
-     NOT a single full-screen layer with z-index: that would draw over the
-     poster too, contradicting the one exception. Instead FOUR BANDS frame the
-     sheet's live rect (--sheet-x/-y/-w/-h, already tracked by #frame and
-     .sheet-lines) and physically stop at its edges — the poster is excluded by
-     geometry, not by paint order, so it holds even while dragging a format
-     morph. Each band carries the SAME viewport-anchored background-position
-     as .gridlayer (vw/vh units, not the band's own box), so the four pick up
-     the pattern exactly where the sheet interrupts it, with no seam. The top
-     and bottom bands run the FULL width and own the corners; left and right
-     only need to fill the sheet's own row between them. */
-  .gridlayer-fg{position:absolute;pointer-events:none;z-index:6;
-    background-image:
-      linear-gradient(to right, var(--gridline) 0 1px, transparent 1px),
-      linear-gradient(to bottom, var(--gridline) 0 1px, transparent 1px);
-    background-size:var(--cell) var(--cell);
-    background-position:calc(50vw + var(--over)) calc(50dvh + var(--over))}
-  .gridlayer-fg.gfg-top{top:0;left:0;right:0;
-    height:calc(var(--sheet-y) + var(--over))}
-  .gridlayer-fg.gfg-bottom{left:0;right:0;bottom:0;
-    top:calc(var(--sheet-y) + var(--sheet-h) + var(--over))}
-  .gridlayer-fg.gfg-left{left:0;
-    top:calc(var(--sheet-y) + var(--over)); height:var(--sheet-h);
-    width:calc(var(--sheet-x) + var(--over))}
-  .gridlayer-fg.gfg-right{right:0;
-    top:calc(var(--sheet-y) + var(--over)); height:var(--sheet-h);
-    left:calc(var(--sheet-x) + var(--sheet-w) + var(--over))}
-  /* the bands resize on the SAME morph as #frame and .sheet-lines, so a format
-     change never shows a stray gap or overlap at the sheet's edge mid-glide */
-  .world.morphing .gridlayer-fg{
-    transition:top var(--morph) var(--ease), left var(--morph) var(--ease),
-               right var(--morph) var(--ease), bottom var(--morph) var(--ease),
-               width var(--morph) var(--ease), height var(--morph) var(--ease)}
 
   /* Viewport-sized box inside the world, so every JS coordinate stays
      viewport-relative exactly as before. */
@@ -1181,17 +1133,6 @@
            is drawn on the same grid the sheet is snapped to. -->
       <div id="qsys"></div>
     </div>
-    <!-- the foreground grid: four bands framing the sheet's live rect, so the
-         lattice crosses visibly over every question, number and dot but is
-         physically excluded from the poster itself (see .gridlayer-fg). A
-         direct child of .world, not .stagebox, and placed AFTER it, so it
-         paints over everything stagebox holds (#qsys included) whatever the
-         tie-break, while staying inside the same stacking context as the
-         sheet it has to track. -->
-    <div class="gridlayer-fg gfg-top"></div>
-    <div class="gridlayer-fg gfg-bottom"></div>
-    <div class="gridlayer-fg gfg-left"></div>
-    <div class="gridlayer-fg gfg-right"></div>
   </div>
 
   <!-- fixed chrome: not part of the board, never moves -->
