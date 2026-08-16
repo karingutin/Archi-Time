@@ -3863,14 +3863,29 @@ function dotXY(d){
    true — the poster came left two cells, the figure's reserve dropped to what
    it actually uses (every panel is 9 wide, see PANEL_W; it had been reserving
    10 plus a spare cell), and the note gave up two cells of width, which is the
-   one place the budget could still find them. */
+   one place the budget could still find them.
+
+   THE EVEN 3s ARE GONE, and deliberately (Karin, 16 Aug): "questions should
+   move 2 columns to the right, poster should move 2 columns to the right". The
+   two move TOGETHER, so the composition keeps its own spacing and the whole of
+   it slides two cells across the board. What that spends is the right margin —
+   the poster's far edge lands two cells nearer the screen edge and the hover
+   note, which is pinned to that edge, has the room it moves in taken out from
+   under it. The board no longer reads even about the poster; it reads as
+   weighted right, which is the arrangement asked for. */
 const SIDE_CELLS=3;           // the margin, both sides — to the PANEL, not the marker
 const NOTE_CELLS=6;           // the hover note's width
-const POSTER_SHIFT_CELLS=3;   // right of centre: questions on the left, notes on the right
-/* QUESTION_LEFT_CELLS is the PANEL's inset now, matching the note's SIDE_CELLS
-   on the opposite edge — see the comment on `left` in snakeBand for how the
-   marker's column is derived from it. */
-const QUESTION_LEFT_CELLS=SIDE_CELLS;
+const POSTER_SHIFT_CELLS=5;   // right of centre: questions on the left, notes on the right
+/* QUESTION_LEFT_CELLS is the PANEL's inset — see the comment on `left` in
+   snakeBand for how the marker's column is derived from it.
+   FIVE, not SIDE_CELLS (Karin, 16 Aug: "questions should move 2 columns to the
+   right"). It no longer tracks the note's inset on the opposite edge, so it is
+   written as its own number rather than as SIDE_CELLS: the two were equal
+   because the board was meant to read even about the poster, and that is the
+   thing that was just given up on purpose. Moving in step with
+   POSTER_SHIFT_CELLS is what keeps the gap between the questions and the poster
+   the same while both slide across. */
+const QUESTION_LEFT_CELLS=5;
 function sheetCols(F){
   F=F||FMT();
   return {left:-Math.round(F.cols/2)+POSTER_SHIFT_CELLS,
