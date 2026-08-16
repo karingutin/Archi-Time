@@ -37,7 +37,7 @@
     /* Measured off the question-system mock: #2F2F2F on black. Deliberately
        dimmer than the .20 white it was — the snake and its panel are what the
        eye should find on this ground, and a brighter lattice competed. */
-    --gridline:#D7D4CC;
+    --gridline:#B7B7B7;   /* light grey, Karin 16 Aug — was #D7D4CC */
     --sheetline:rgba(0,0,0,.34);        /* the lines bounding the sheet: darker */
     --dot:#D6D6D6;
 
@@ -139,6 +139,54 @@
       linear-gradient(to bottom, var(--gridline) 0 1px, transparent 1px);
     background-size:var(--cell) var(--cell);
     background-position:calc(50vw + var(--over)) calc(50dvh + var(--over))}
+
+  /* THE FOREGROUND GRID. Karin's rule, 16 Aug: the lattice should show THROUGH
+     the question numbers and their panels — not just have them snapped to it,
+     the lines themselves cross visibly over the white card — everywhere
+     EXCEPT the poster itself, which must stay clean.
+
+     Same pattern as .gridlayer (identical background-image/size/position, so
+     the lines it draws are pixel-perfect continuations of the base grid, not
+     a second misaligned lattice), but on top: z-index 6 clears #qsys (5), so
+     every panel, hint, control and step number gets crossed by it, and ties
+     with .dots-int (6) — later in the DOM here, so it wins that tie and also
+     crosses the answered-question dots. It stays below #mkPoster (7),
+     #status/#reset (8) and the format switcher (9), which were never part of
+     this request, and, because .world itself is only one stacking level (1)
+     against .surface's other children, it can never reach above them anyway.
+
+     NOT a single full-screen layer with z-index: that would draw over the
+     poster too, contradicting the one exception. Instead FOUR BANDS frame the
+     sheet's live rect (--sheet-x/-y/-w/-h, already tracked by #frame and
+     .sheet-lines) and physically stop at its edges — the poster is excluded by
+     geometry, not by paint order, so it holds even while dragging a format
+     morph. Each band carries the SAME viewport-anchored background-position
+     as .gridlayer (vw/vh units, not the band's own box), so the four pick up
+     the pattern exactly where the sheet interrupts it, with no seam. The top
+     and bottom bands run the FULL width and own the corners; left and right
+     only need to fill the sheet's own row between them. */
+  .gridlayer-fg{position:absolute;pointer-events:none;z-index:6;
+    background-image:
+      linear-gradient(to right, var(--gridline) 0 1px, transparent 1px),
+      linear-gradient(to bottom, var(--gridline) 0 1px, transparent 1px);
+    background-size:var(--cell) var(--cell);
+    background-position:calc(50vw + var(--over)) calc(50dvh + var(--over))}
+  .gridlayer-fg.gfg-top{top:0;left:0;right:0;
+    height:calc(var(--sheet-y) + var(--over))}
+  .gridlayer-fg.gfg-bottom{left:0;right:0;bottom:0;
+    top:calc(var(--sheet-y) + var(--sheet-h) + var(--over))}
+  .gridlayer-fg.gfg-left{left:0;
+    top:calc(var(--sheet-y) + var(--over)); height:var(--sheet-h);
+    width:calc(var(--sheet-x) + var(--over))}
+  .gridlayer-fg.gfg-right{right:0;
+    top:calc(var(--sheet-y) + var(--over)); height:var(--sheet-h);
+    left:calc(var(--sheet-x) + var(--sheet-w) + var(--over))}
+  /* the bands resize on the SAME morph as #frame and .sheet-lines, so a format
+     change never shows a stray gap or overlap at the sheet's edge mid-glide */
+  .world.morphing .gridlayer-fg{
+    transition:top var(--morph) var(--ease), left var(--morph) var(--ease),
+               right var(--morph) var(--ease), bottom var(--morph) var(--ease),
+               width var(--morph) var(--ease), height var(--morph) var(--ease)}
 
   /* Viewport-sized box inside the world, so every JS coordinate stays
      viewport-relative exactly as before. */
@@ -429,6 +477,11 @@
      tips scale from their own centres, not the SVG origin. */
   @keyframes nodePop{from{opacity:0;transform:scale(0)}to{opacity:1;transform:none}}
   @keyframes nodeRay{from{stroke-dashoffset:var(--rl)}to{stroke-dashoffset:0}}
+  /* THE BASE GRID (shape + density): on first appearance the output RISES from
+     the bottom of the sheet to the top — a clip that fills upward, so the lines
+     read as coming up from below rather than blooming from the centre. */
+  .hl.enter[data-q="basegrid"]{animation:gridRise .95s var(--eo) both}
+  @keyframes gridRise{from{clip-path:inset(100% 0 0 0)}to{clip-path:inset(0 0 0 0)}}
   .hl.enter[data-q="alarms"] .nsq{transform-box:fill-box;transform-origin:center;
     animation:nodePop .30s var(--eo) both}
   .hl.enter[data-q="alarms"] .nray{stroke-dasharray:var(--rl);
@@ -463,6 +516,50 @@
     animation:ringBud .52s var(--eo) both;
     animation-delay:calc(.14s + var(--ri) * var(--rstep,90ms))}
 
+  /* THE MONTH SILHOUETTE (Q3): on FIRST appearance it grows from the sheet
+     centre — a smooth scale of the whole layer group about the viewBox centre,
+     the same move as the base grid but keyed to the sheet centre rather than the
+     group's own box. A month CHANGE keeps the raster re-grow (startMonthGrow);
+     .enter is off by then, so this never fights it. */
+  .hl.enter[data-q="month"]{transform-box:view-box;transform-origin:50% 50%;
+    animation:monthGrow .72s var(--eo) both}
+  @keyframes monthGrow{from{transform:scale(.04)}to{transform:scale(1)}}
+
+  /* THE DECADES BRICK BAND (Q7): on first appearance the checkerboard lays in
+     column by column from the left, each brick growing up from its own foot —
+     the piece's whole-cell brick language. --cstep (set on the group off the
+     column count) keeps the whole band inside ~0.8s however many decades. */
+  @keyframes brickLay{from{opacity:0;transform:scaleY(0)}to{opacity:1;transform:none}}
+  .hl.enter[data-q="decades"] .brick{transform-box:fill-box;transform-origin:bottom;
+    animation:brickLay .42s var(--eo) both;
+    animation-delay:calc(var(--ci) * var(--cstep,40ms))}
+
+  /* THE LATTICE (Q8/sixweek): on FIRST appearance only, every cell pops in as a
+     true hard cut (no fade) — each cell carries its own reveal delay (--cd),
+     baked in JS as an eased distance-from-top-left so the population reads as
+     one diagonal wavefront sweeping down-right, easing out as it advances. A
+     steps(1,end) animation holds each cell at opacity:0 for its entire duration
+     and then snaps straight to opaque — no interpolation, matching the piece's
+     no-fade language. Only ever runs once: any later paint (a bar drag, a
+     revisit) uses the batched static render, which has no .lcell elements to
+     animate at all.
+
+     The duration used to be 0.01s. steps(1,end) only ever shows two states, so
+     that read as instant either way — but a 10ms window is short enough that
+     the main-thread work landing right after 257 cells are inserted
+     (addHitRects' getBBox pass, markEntries' classList pass) could eat the
+     whole window before the browser sampled it, and a cell whose step got
+     stepped over that way never recovers: fill-mode:both freezes it at
+     opacity:0 forever. Karin found 9 cells permanently missing after the
+     sweep finished. 240ms is long enough that no plausible stall skips it
+     outright, and JS backs the per-cell delay off by the same 240ms so the
+     sweep's overall timing and easing feel unchanged. */
+  @keyframes latticeCellIn{from{opacity:0}to{opacity:1}}
+  .hl.enter[data-q="sixweek"] .lcell{
+    opacity:0;
+    animation:latticeCellIn .24s steps(1,end) both;
+    animation-delay:var(--cd)}
+
   #hoverCard{position:fixed;z-index:20;background:var(--q-panel);
              font-family:var(--q-face);
              opacity:0;transform:translateY(4px);transition:opacity .2s var(--ease),transform .2s var(--ease);
@@ -470,7 +567,7 @@
   #hoverCard.on{opacity:1;transform:none}
   #hoverCard .hc-t{color:var(--q-text);margin:0;font-weight:700;line-height:1.1}
   #hoverCard .hc-b{color:var(--q-text);margin:0;font-weight:400}
-  /* the background-grid reading — the three base answers, set quieter and apart */
+  /* the background-grid reading — the grid's own answers, set quieter and apart */
   #hoverCard .hc-g{color:#9A9A9A;margin:0;font-weight:400}
 
   /* No frame: these ARE the four grid lines that fall on the sheet's edges,
@@ -538,19 +635,16 @@
      field IS the container, which is why nothing here draws a box.
 
      Note which grid this is. The poster's grid (the sheet, the dot field) must
-     not be visible for any of the four landing steps; that spec is untouched.
-     What shows is the INTERFACE grid, the same --cell lattice .gridlayer paints
+     not be visible behind the opening screen; that spec is untouched. What
+     shows is the INTERFACE grid, the same --cell lattice .gridlayer paints
      behind the board, so the frame you will be read against is already there
      before you are.
 
      Every measurement is in whole --cell units, so the aperture's four edges
      land on gridlines exactly the way the sheet snaps to them later. */
-  /* The field is not part of any step's markup. It is a sibling of #landingBody
-     that outlives every innerHTML wipe, so it runs unbroken from the opening
-     screen through all three base questions — and the aperture simply
-     re-measures itself around whatever the current step is showing. Moving
-     between steps IS the hole changing size, which is the only transition the
-     sequence needs. */
+  /* The field is not part of the step's markup. It is a sibling of #landingBody
+     that outlives every innerHTML wipe, and the aperture simply re-measures
+     itself around whatever the screen is showing. */
   #heroField{position:absolute;inset:0;display:block;width:100%;height:100%;
     z-index:0;pointer-events:none}
   #landingBody{position:relative;z-index:1}
@@ -611,8 +705,8 @@
      Replaces the typed title. The name is built from the same cells the
      question controls are: white tiles with a charcoal letter, laid out as a
      checkerboard so the cluster reads as one mark cut from the lattice. START
-     is the one dark cell — the first cell the visitor fills, before the three
-     base questions. Both the tiles and START answer the pointer the same way:
+     is the one dark cell — the first cell the visitor fills, before the board
+     and its questions. Both the tiles and START answer the pointer the same way:
      four small marks light on the grid junctions at the cell's corners, so the
      thing under the cursor is plainly a target. */
   /* The plate fills the viewport; the logo box and START are positioned inside
@@ -620,7 +714,6 @@
      cells' corners land on the same junctions the dot field paints. */
   .hero-kairo{position:absolute;inset:0;left:0;top:0;transform:none;width:auto;display:block}
   .klogo{position:absolute}
-  .hero-kairo .skip{position:absolute;text-align:center}
   .klogo .kt{position:absolute;display:flex;align-items:center;justify-content:center;
     background:#FFFFFF;color:var(--fg);font-family:var(--display);font-weight:600;
     line-height:1;cursor:default}
@@ -642,7 +735,7 @@
   .klogo .kt:hover .kmark,.kstart:hover .kmark{background:var(--fg)}
   /* START — the one dark cell, filling the empty checkerboard slot between A and
      R (3 cells wide, 1 tall; positioned by JS). The first cell the visitor
-     fills, before the three base questions. */
+     fills, before the board and its questions. */
   .kstart{position:absolute;z-index:2;border:0;background:var(--fg);color:#FFFFFF;
     font-family:var(--display);font-weight:500;letter-spacing:.12em;text-transform:uppercase;
     cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
@@ -651,120 +744,62 @@
   .kstart:focus-visible{outline:none}
   @media (prefers-reduced-motion:reduce){.kmark,.kstart{transition:none}}
 
-  /* ---- the three base questions: the interface's question identity --------
-     A white panel on the same lattice, the number in a filled cell off the
-     top-left corner and SAVE off the bottom-right, both diagonal to the panel
-     the way the bank's questions carry them. The eyebrow and the "Architecture
-     of Time" kicker the landing steps used to print are gone: the number is the
-     only label. */
-  /* The three base questions borrow the interface question system's exact
-     measures — all in cells (Q_FS/Q_LH/Q_INSET/Q_HFS/Q_HLH/Q_HGAP): a panel nine
-     cells wide, the title and hint BOTH Wix Madefor 400 in black, the hint just
-     smaller — so a base question reads as one of the interface's own. */
-  /* MEASURED OFF THE FIGMA NODE (2879:6431, the auto-layout master; geometry
-     first read off 2875:6328). That drawing is on a 45px cell — its grid dots,
-     its numbered tile and its NEXT block all read 45 — so every number below is
-     one of its auto-layout paddings or gaps divided by 45. They are
-     proportions, and they hold at any cell size.
-       card 10 x 9 cells (the one block every question gets)
-       hug top 13/45 = .289, sides 18/45 = .4
-       title 22/45 = .489, leading 1.33  title->hint 3/45 = .067
-       hint  14/45 = .311, leading 1.33                                        */
-  #landing:not(.hero) #landingBody{
-    position:absolute;background:#FFFFFF;color:#000;
-    width:calc(var(--cell)*9);
-    padding:calc(var(--cell)*.289) calc(var(--cell)*.4) 0}
-  /* the number and the total, each in its own cell off the top-left corner: the
-     number filled black, the total white — the interface's own marker */
-  .qnum{position:absolute;left:calc(var(--cell)*-2);top:calc(var(--cell)*-1);display:flex}
-  .qnum b,.qnum s{width:var(--cell);height:var(--cell);display:flex;align-items:center;
-    justify-content:center;font-family:var(--display);line-height:1;
-    font-size:calc(var(--cell)*.42);text-decoration:none}
-  .qnum b{background:#000;color:#FFFFFF;font-weight:500}
-  .qnum s{background:#FFFFFF;color:#000;font-weight:700}
-  /* the step markers live in their own layer, above the wiped panel, so the ones
-     already answered stay on the grid, greyed, as the panel steps diagonally
-     down-right — a progress trail like the central system's */
-  #landingMarks{position:absolute;inset:0;pointer-events:none;z-index:2}
-  /* one cell each, the number and the total, both Wix Madefor 400 at 20/45 of a
-     cell with the frame's 0.6px tracking (.03em) */
-  .qmark{position:absolute;width:var(--cell);height:var(--cell);display:flex;
-    align-items:center;justify-content:center;font-family:var(--display);font-weight:400;
-    font-size:calc(var(--cell)*.444);line-height:1;letter-spacing:.03em}
-  .qmark.now{background:#000;color:#FFFFFF}
-  .qmark.past{background:#D0D0CC;color:#FFFFFF}     /* answered, greyed back */
-  .qmark .tot{position:absolute;left:100%;top:0;width:var(--cell);height:var(--cell);
-    background:#FFFFFF;color:#000;font-weight:400;display:flex;align-items:center;justify-content:center}
-  /* scoped under #landingBody so they beat the legacy `#landingBody h1` weight
-     and size, which would otherwise force the title bold */
-  #landingBody .qq{font-family:var(--display);font-weight:400;color:#000;letter-spacing:-.01em;
-    font-size:calc(var(--cell)*.489);line-height:calc(var(--cell)*.650);margin:0}
-  #landingBody .qhint{font-family:var(--display);font-weight:400;color:#000;letter-spacing:0;
-    font-size:calc(var(--cell)*.311);line-height:calc(var(--cell)*.414);
-    margin:calc(var(--cell)*.067) 0 0}
-  /* BACK is not in the frame, and it must not push the panel taller than the six
-     cells the frame gives it. So it hangs off the panel's bottom-LEFT corner,
-     out of the flow, mirroring the block NEXT hangs off the bottom-right — the
-     same cell band, the same type, quiet instead of filled. */
-  .qfoot{position:absolute;left:0;bottom:calc(var(--cell)*-1);margin:0;min-height:0}
-  .qback{width:calc(var(--cell)*2);height:var(--cell);
-    display:flex;align-items:center;justify-content:center;padding:0;
-    font-family:var(--display);font-weight:400;font-size:calc(var(--cell)*.311);
-    letter-spacing:.03em;text-transform:uppercase;
-    background:transparent;border:0;color:var(--dim);cursor:pointer}
-  .qback:hover{color:var(--fg)}
-  /* the frame's NEXT: two cells by one, its top-left ON the panel's bottom-right
-     corner, Wix Madefor 400 at 14/45 of a cell with 0.42px (.03em) tracking */
-  .qsave{position:absolute;right:calc(var(--cell)*-2);bottom:calc(var(--cell)*-1);
-    width:calc(var(--cell)*2);height:var(--cell);
-    background:var(--fg);color:#FFFFFF;border:0;cursor:pointer;font-family:var(--display);
-    font-weight:400;letter-spacing:.03em;text-transform:uppercase;
-    display:flex;align-items:center;justify-content:center;padding:0;font-size:calc(var(--cell)*.311);
-    transition:box-shadow .15s var(--ease)}
-  .qsave:hover:not(:disabled){box-shadow:0 10px 24px -10px rgba(0,0,0,.45)}
-  .qsave:disabled{background:var(--line);color:var(--dim);cursor:default}
-  .qsave:focus-visible{outline:2px solid var(--fg);outline-offset:4px}
+  /* ---- the base questions' controls, rescoped -----------------------------
+     The base questions moved into the board's own question system (bank Q1 and
+     Q2), so the landing carries only the opening screen now — the white panel,
+     its markers and its NEXT block all went with them. Their two controls live
+     on, rescoped under .qpanel below. */
 
-  /* Q1 shape: two circle options, drawn to the same Figma node (2879:6431) and
-     the same 45px cell as the panel around them. The mark sits apart from the
+  /* SHAPE (bank Q1): two circle options, carried over from the landing screens
+     with their Figma glyphs (node 2879:6431). The mark sits apart from the
      ring or rides on it; the chosen option inks in, the other rests in grey.
-       text->circles 26/45 = .578        circle 100.934/45 = 2.243
+     Placed under the words by shapeDuoMarkup; everything inside is cells, so
+     it breathes with the panel.
        box to box    94/45 = 2.089       circle->label 10/45 = .222
-       label         12/45 = .267        label leading 15.96/45 = .355         */
-  .qduo{display:flex;justify-content:center;align-items:flex-start;
-    gap:calc(var(--cell)*2.089);margin:calc(var(--cell)*.578) 0 0}
-  /* each option is exactly the circle's own box wide, so centring the pair
-     centres the two rings and the labels under them */
-  .qduo button{background:transparent;border:0;cursor:pointer;display:flex;
-    flex-direction:column;align-items:center;padding:0;
-    width:calc(var(--cell)*2.243);gap:calc(var(--cell)*.222)}
+       label 14/45 = .311 (12 + Karin's 2pt)   leading 1.33 -> .414           */
+  .qpanel .qduo{display:flex;justify-content:center;align-items:flex-start;
+    gap:calc(var(--cell)*2.089)}
+  /* No width here: each option is exactly the circle's own box wide, and the
+     circle takes the FEBDAYS row's diameter, set inline by shapeDuoMarkup —
+     Q1's rings and Q4's circles are one size of the same mark, by decision. */
+  .qpanel .qduo button{background:transparent;border:0;cursor:pointer;display:flex;
+    flex-direction:column;align-items:center;padding:0;gap:calc(var(--cell)*.222)}
   /* overflow:visible — the apart mark lives OUTSIDE the ring's box, to its
-     right, and the ring's box is what the label lines up with */
-  .qduo svg{display:block;overflow:visible;
-    width:calc(var(--cell)*2.243);height:calc(var(--cell)*2.243)}
+     right, and the ring's box is what the label lines up with. position stated
+     to beat the .qpanel svg rule that stretches panel SVGs full-bleed; the
+     size comes inline from shapeDuoMarkup. */
+  .qpanel .qduo svg{position:static;display:block;overflow:visible}
   /* the mark sits still: apart from the ring, or on it. (The slow orbit was
      tried and dropped — it read as confusing.) */
-  .qduo .ring{fill:none;stroke:#C2C2BE;transition:stroke .16s}
-  .qduo .dot{fill:#C2C2BE;transition:fill .16s}
-  .qduo b{font-family:var(--display);font-weight:400;
-    font-size:calc(var(--cell)*.267);line-height:calc(var(--cell)*.355);
+  .qpanel .qduo .ring{fill:none;stroke:#C2C2BE;transition:stroke .16s}
+  .qpanel .qduo .dot{fill:#C2C2BE;transition:fill .16s}
+  .qpanel .qduo b{font-family:var(--q-face);font-weight:400;
+    font-size:calc(var(--cell)*.311);line-height:calc(var(--cell)*.414);
     text-align:center;color:var(--dim);transition:color .16s}
-  .qduo button[aria-pressed=true] .ring{stroke:var(--fg)}
-  .qduo button[aria-pressed=true] .dot{fill:var(--fg)}
-  .qduo button[aria-pressed=true] b{color:var(--fg)}
+  .qpanel .qduo button[aria-pressed=true] .ring{stroke:var(--q-text)}
+  .qpanel .qduo button[aria-pressed=true] .dot{fill:var(--q-text)}
+  .qpanel .qduo button[aria-pressed=true] b{color:var(--q-text)}
 
-  /* Q2 density: three circles filling up — a sliver, about half, brimming. */
-  .qfill{display:flex;gap:26px;justify-content:center;align-items:flex-end;margin:calc(var(--cell)*.5) 0 0}
-  .qfill button{background:transparent;border:0;cursor:pointer;display:flex;
-    flex-direction:column;align-items:center;gap:16px;padding:6px}
-  .qfill .circ{position:relative;width:70px;height:70px;border-radius:50%;
+  /* DENSITY (bank Q2): three circles filling up — a sliver, about half,
+     brimming. The landing control's px measures converted to cells at the same
+     45px drawing: circle 70/45 = 1.556, gap 26/45 = .578, circle->label
+     16/45 = .356, label 13/45 = .289. */
+  .qpanel .qfill{display:flex;justify-content:center;align-items:flex-end;
+    gap:calc(var(--cell)*.578)}
+  .qpanel .qfill button{background:transparent;border:0;cursor:pointer;display:flex;
+    flex-direction:column;align-items:center;padding:0;gap:calc(var(--cell)*.356)}
+  /* no width/height here: the circle takes the MONTH question's own diameter
+     (ringCircleD), set inline by densityFillMarkup, so the two questions'
+     circles can never drift into two sizes of the same mark */
+  .qpanel .qfill .circ{position:relative;box-sizing:border-box;border-radius:50%;
     border:2px solid #C2C2BE;overflow:hidden;transition:border-color .16s}
-  .qfill .circ i{position:absolute;left:0;right:0;bottom:0;height:0;background:#C2C2BE;
+  .qpanel .qfill .circ i{position:absolute;left:0;right:0;bottom:0;height:0;background:#C2C2BE;
     transition:background .16s,height 1.1s cubic-bezier(.34,1.2,.5,1)}
-  .qfill b{font-family:var(--display);font-weight:500;font-size:13px;color:var(--dim);transition:color .16s}
-  .qfill button[aria-pressed=true] .circ{border-color:var(--fg)}
-  .qfill button[aria-pressed=true] .circ i{background:var(--fg)}
-  .qfill button[aria-pressed=true] b{color:var(--fg)}
+  .qpanel .qfill b{font-family:var(--q-face);font-weight:500;
+    font-size:calc(var(--cell)*.289);color:var(--dim);transition:color .16s}
+  .qpanel .qfill button[aria-pressed=true] .circ{border-color:var(--q-text)}
+  .qpanel .qfill button[aria-pressed=true] .circ i{background:var(--q-text)}
+  .qpanel .qfill button[aria-pressed=true] b{color:var(--q-text)}
 
   /* questions arrive as a card floating on the surface, clear of the sheet */
   .popup{
@@ -863,17 +898,6 @@
   .tri button[aria-pressed=true] b{color:var(--fg)}
   .tri button:focus-visible i{outline:1px solid var(--fg);outline-offset:3px}
 
-  /* Q3's semicircle dial. Lives only on the landing screen, so it only ever
-     needs the light-on-dark palette #landing supplies via --fg/--dim/--line. */
-  .arcwrap{margin:8px 0 4px;text-align:center}
-  #arcSvg{width:100%;max-width:320px;height:auto;overflow:visible;touch-action:none}
-  .arclabel{font-family:var(--mono);font-size:9px;letter-spacing:.08em;fill:var(--dim)}
-  #arcHandle{fill:var(--fg);cursor:grab;touch-action:none}
-  #arcHandle:active{cursor:grabbing}
-  #arcHandle:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
-  .arcread{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
-           color:var(--fg);margin:14px 0 0}
-
   .num{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
   .num input{width:104px;background:transparent;border:0;border-bottom:1px solid var(--fg);
              font-family:var(--display);font-weight:800;font-size:50px;color:var(--fg);
@@ -948,6 +972,16 @@
   /* the panel. White, and the question is set in it at the top left with a
      single cell-derived inset — the mock's 19px on a 43px cell. */
   .qpanel{background:var(--q-panel);overflow:hidden}
+  /* ONE div owns the panel's spacing (flow panels): the hug is its padding,
+     the gaps are its children's top margins, and the panel's height is auto —
+     it hugs whatever the column adds up to. */
+  .qpanel .qflow{display:flex;flex-direction:column;align-items:stretch}
+  /* An svg CONTROL is a flow child too: full panel width (the words carry the
+     side hug), height from its own cropped viewBox — so the render stays 1:1
+     with the viewBox units and the panel's height follows the control's foot.
+     Direct child only: the shape control's ring glyphs (.qduo svg) keep their
+     own fixed cell size. */
+  .qpanel .qflow>svg{position:static;display:block;width:100%;height:auto}
   .qpanel h2{margin:0;color:var(--q-text);font-family:var(--q-face);
              font-weight:400;letter-spacing:-.01em}
   /* the same #FF0000 as the question — the node sets it in the full red and
@@ -970,6 +1004,7 @@
   .qpanel .bar-hit{fill:transparent}
   .qpanel .bar-val{fill:var(--q-text);font-family:var(--q-face);font-weight:700}
   .qpanel .bar-unit{fill:var(--q-past);font-weight:400}
+  .qpanel .bar-end{fill:var(--q-past);font-family:var(--q-face);font-weight:400}
   .qpanel svg:focus-visible{outline:none}
   .qpanel .dial-arc{fill:none;stroke:var(--q-past)}
   .qpanel .dial-tick{fill:var(--q-past)}
@@ -989,7 +1024,7 @@
 
      Both are grids of cells, laid out in the panel's own module rather than in
      ems, so they read as more of the same lattice. */
-  .qpanel .qopts{position:absolute;display:grid;gap:1px}
+  .qpanel .qopts{display:grid;gap:1px}
   .qpanel .qopts button{border:0;background:var(--q-past);color:#FFFFFF;
     font-family:var(--q-face);font-weight:400;cursor:pointer;padding:0 .35em;
     display:flex;align-items:center;justify-content:center;text-align:center;
@@ -1146,6 +1181,17 @@
            is drawn on the same grid the sheet is snapped to. -->
       <div id="qsys"></div>
     </div>
+    <!-- the foreground grid: four bands framing the sheet's live rect, so the
+         lattice crosses visibly over every question, number and dot but is
+         physically excluded from the poster itself (see .gridlayer-fg). A
+         direct child of .world, not .stagebox, and placed AFTER it, so it
+         paints over everything stagebox holds (#qsys included) whatever the
+         tie-break, while staying inside the same stacking context as the
+         sheet it has to track. -->
+    <div class="gridlayer-fg gfg-top"></div>
+    <div class="gridlayer-fg gfg-bottom"></div>
+    <div class="gridlayer-fg gfg-left"></div>
+    <div class="gridlayer-fg gfg-right"></div>
   </div>
 
   <!-- fixed chrome: not part of the board, never moves -->
@@ -1188,7 +1234,7 @@
    context D — that is how a question becomes relative to age or to today.
    Set pinned:true on a question that must always be asked.
    ===================================================================== */
-const BUILD='b291308';   // shown bottom-left, so you can confirm which build you are looking at
+const BUILD='b291310';   // shown bottom-left, so you can confirm which build you are looking at
 const CONFIG = {
   DATA_ENDPOINT: "",            // e.g. "https://hook.eu2.make.com/xxxxx"
   POST_TO_PARENT: true,
@@ -1199,10 +1245,10 @@ const CONFIG = {
   /* The opening screen — title, one line, Begin. It collects nothing: the name
      and birthdate fields it used to carry are gone, since the poster has no
      text on it and neither value ever drove a mark. Off drops the screen and
-     opens straight onto the first base question. (Was ASK_PROFILE, which named
-     a job this screen no longer has. S.name/S.dob remain in the state and in
-     payload() so already-collected responses keep their shape — they are just
-     never filled now; see the note in payload.) */
+     opens straight onto the board and its first question. (Was ASK_PROFILE,
+     which named a job this screen no longer has. S.name/S.dob remain in the
+     state and in payload() so already-collected responses keep their shape —
+     they are just never filled now; see the note in payload.) */
   SHOW_OPENING: true,
   FORMAT: 'sheet',              // the format the board opens on
   /* Off for now: the format control is hidden and the board is locked to
@@ -1217,11 +1263,11 @@ const CONFIG = {
      against. Only after them does the path fork, and then any of the next
      OPEN_AHEAD is available — so there is always a choice of where to go
      without ever losing the thread.
-     NOTE: the intended shape is 3 base questions then 10 with a choice, which
-     needs a bank of 13. With today's bank of 4 the fork is never reached, so
-     the session runs strictly in order. Nothing here needs to change when the
-     bank grows — only QUESTIONS_PER_SESSION. */
-  LINEAR_LEAD: 3,
+     Five, not three: shape and density (the two questions that used to open
+     the landing sequence, and now lay the base grid) joined the front of the
+     bank, so the strict walk covers them plus the month/snake/node trio it
+     always covered. */
+  LINEAR_LEAD: 5,
   OPEN_AHEAD: 2,
 
   /* the wake that travels from the question just answered toward the next one.
@@ -1343,14 +1389,13 @@ const val=(x,D)=>typeof x==='function'?x(D):x;
    STATE
    ===================================================================== */
 /* Everything the landing sequence collects, reset together by resetAll().
-   baseDone gates the entire board — see availableQs(). baseShape/baseDensity/
-   baseFrac are the three permanent answers the base questions write; once
-   baseDone flips true they are never touched again (no dot, no card, no way
-   back in — see finishBase()). */
+   baseDone gates the entire board — see availableQs(). It used to also mark
+   the three base questions as banked; those moved into the bank itself (shape
+   and density are now questions 1 and 2, the arrival dial was removed), so
+   all that is left to finish is the opening screen. */
 const PROFILE_DEFAULTS={
   name:'', dob:'', age:'',
-  baseDone:false,
-  baseShape:'square', baseDensity:'enough', baseFrac:0.5
+  baseDone:false
 };
 /* done    the question is behind us, whether answered or skipped
    touched the person actually moved a control rather than accepting the default
@@ -1445,25 +1490,44 @@ const MONTH_TEMPS={
 const MONTHS=Object.keys(MONTH_TEMPS);
 
 /* =====================================================================
-   THE BANK — 13 questions, asked in this order.
+   THE BANK — asked in this order.
 
    PLACEHOLDER WORDING. These are here so the interface can be built and felt
    against a real session length; every title is expected to change. What is NOT
-   placeholder is the STRUCTURE: 13 questions, the first three pinned as the
-   linear lead, all of them binaries.
+   placeholder is the STRUCTURE: the first seven pinned as the base of the
+   poster, the tail binaries behind them.
 
    The order is the author's and is preserved as written — see SHUFFLE_TAIL.
    ===================================================================== */
 const QUESTION_BANK=[
-  /* ---- the questions that open part two, answered in this order. Every one of
-     them draws something, and the order is the order the LAYERS ARRIVE IN, not
-     the order they stack in: month lays the big silhouette over the grid, the
-     snake then runs across the middle of it, the node pins on top, the rings
-     nest into the corner, and the decades band closes the foot.
+  /* ---- the questions that open the session, answered in this order. Every one
+     of them draws something, and the order is the order the LAYERS ARRIVE IN,
+     not the order they stack in: shape and density lay the base grid itself
+     (they used to be asked on the landing screens, before the board was ever
+     shown — now the grid is earned like every other layer), month lays the big
+     silhouette over it, the snake then runs across the middle, the node pins on
+     top, the rings nest into the corner, and the decades band closes the foot.
 
-     febdays sits second on purpose. It draws the snake, which is the layer that
-     reads first after the silhouette, and putting it before the node means the
-     sheet is legible as a composition three questions in rather than five. ---- */
+     febdays sits right after month on purpose. It draws the snake, which is the
+     layer that reads first after the silhouette, and putting it before the node
+     means the sheet is legible as a composition early rather than late. ---- */
+  /* The FIRST question, and the one that decides what the base grid IS: rings
+     carried around a centre, or rays moving out from it. Its two sides keep the
+     landing screen's ring-and-mark glyphs — see shapeDuoMarkup. */
+  {id:'shape', type:'duo', label:'Shape',
+   title:'How do you experience time?',
+   hint:'Don’t overthink it, go with your gut',
+   options:[['square','It moves on without me',''],['circle','It carries me along with it','']],
+   default:'square',
+   display:v=>v==='circle'?'It carries me along with it':'It moves on without me'},
+  /* The SECOND: how dense that grid is — how many rings or rays it runs to.
+     Three circles filling up to their level — see densityFillMarkup. */
+  {id:'density', type:'duo', label:'Density',
+   title:'How much time do you feel like you have?',
+   hint:'Don’t overthink it, go with your gut',
+   options:[['little','Too little',''],['enough','Enough',''],['plenty','Plenty','']],
+   default:'enough',
+   display:v=>({little:'Too little',enough:'Enough',plenty:'Plenty'}[v]||v)},
   /* The only question in the bank with twelve sides. Its answer is a month
      NAME, which indexes MONTH_TEMPS: the month's temperature string is what
      gets set, rasterised and packed with circles to make the layer above the
@@ -1471,10 +1535,14 @@ const QUESTION_BANK=[
      ctrlChoice. */
   {id:'month', type:'choice', label:'Month',
    title:'Which month\u2019s weather feels like it was made for you?',
-   hint:'Think about how the air actually feels that month and choose one option',
+   hint:'Think about how the air feels that month',
    options:MONTHS, default:'April',
    /* the layer grows in rather than cutting in — see MONTH_GROW */
-   onPick:()=>startMonthGrow(),
+   /* FIRST appearance: a plain draw() at full radius, so the CSS scale entrance
+      (.hl.enter[data-q="month"]) grows the silhouette in from the sheet centre.
+      A LATER pick (month change) keeps the raster re-grow. `entered` holds the
+      id only AFTER the first appearance has been tagged, so it is the switch. */
+   onPick:()=> entered.has('month') ? startMonthGrow() : draw(),
    display:v=>v},
   /* The SECOND question to reach the artwork: the numbered metaball snake across
      the middle. A `choice`, so it is a CARD with no default — nothing is drawn
@@ -1502,12 +1570,14 @@ const QUESTION_BANK=[
   /* The FOURTH: the nested rings in the top-right corner. Its answer is the ring
      COUNT and nothing else — every other control on the tool is frozen (see
      RINGS), and the lean is the roll (see ROLLS).
-     A `choice`, so it is a CARD: a row of circles, one per option, and '5+' on
-     the end for anyone who remembers more than five. */
+     A `choice`, so it is a CARD: a row of circles, one per option, and '4+' on
+     the end for anyone who remembers more than a few. Four options, not five —
+     the plain '4' card and the ring count it used to draw are both gone; '4+'
+     draws what '5+' used to (see ringCountFromAnswers). */
   {id:'vacations', type:'choice', label:'Memories',
    title:'How many core memories pop into your head right now?',
    hint:'How many of them surface?',
-   options:['1','2','3','4','5+'],
+   options:['1','2','3','4+'],
    display:v=>v},
   /* The fifth base question. A BAR with ten stops, 10..100 years, and its answer
      drives the geometric rectangle pattern along the foot of the sheet — one more
@@ -1528,13 +1598,20 @@ const QUESTION_BANK=[
    options:['green-red','red-blue','green-blue','random','magenta-cyan','magenta-yellow'],
    display:v=>v},
 
-  /* ---- the ten that follow, where the path forks ---- */
-  bin('facing','Facing','Are you more focused on where you’ve been, or where you’re going?',
-      ['been','Where I’ve been'], ['going','Where I’m going']),
-  bin('vantage','Vantage','Does time feel like something you’re inside of, or something you’re looking at from outside?',
-      ['inside','Inside it'], ['outside','Outside it']),
-  bin('owning','Owning','Does time feel like it’s yours, or borrowed?',
-      ['mine','Mine'], ['borrowed','Borrowed']),
+  /* ---- the tail that follows, where the path forks. vantage ("inside or
+     outside of time") and owning ("yours or borrowed") were cut from here by
+     decision, and the compass question moved up into their place. ---- */
+  /* Question 8 (was 6 before shape and density joined the front), and the first
+     binary-slot question to reach the artwork: the
+     week/weekend bar drives the ported Geometric Lattice (see latticeLayer). A
+     `bar`, so it opens on its middle default and never locks Save. Its ends are
+     named, not numbered — the handle snaps to hidden stops. Low end (0) is the
+     week (few crosses); high end (100) is the weekend (a field of black X). */
+  {id:'sixweek', type:'bar', label:'Week',
+   title:'What feels more important, the week or the weekend?',
+   hint:'Let the handle settle wherever it honestly sits.',
+   min:0, max:100, step:5, default:50, ends:['The week','Weekend'],
+   display:v=> v>55?'The weekend' : v<45?'The week' : 'Evenly split'},
   /* The one question whose answer is WORDS. A `choice`, but it never touches the
      month ring: panelControl special-cases it (see compassMarkup) into four
      circles on the points of a compass. The picked word is meant to land on the
@@ -1547,13 +1624,14 @@ const QUESTION_BANK=[
      response already collected. */
   {id:'saying', type:'choice', label:'Word',
    title:'Which word represents your relationship with time?',
-   hint:'Choose the one that goes best with your intuition',
-   /* One word per corner of the same compass: Regret and Presence are where the
-      attention sits (behind you, or here), Trust and Worry are how the part you
-      cannot see yet feels. Presence, not Present: the other three are nouns for a
-      stance, and "Present" reads first as the span of time rather than the way of
-      being in it. */
-   options:['Trust','Worry','Presence','Regret'],
+   hint:'Go with your intuition',
+   /* Now a ROW of four circles (see panelControl), read left to right in the
+      order Karin set on 16 Aug: the two ways the unseen part feels (Trust,
+      Worry), then the two places the attention sits (Regret: behind, Presence:
+      here). Presence, not Present: the other three are nouns for a stance, and
+      "Present" reads first as the span of time rather than the way of being in
+      it. */
+   options:['Trust','Worry','Regret','Presence'],
    display:v=>v},
   bin('gaze','Gaze','Right now, are you looking backward more, or forward more?',
       ['back','Backward'], ['forward','Forward']),
@@ -1568,11 +1646,12 @@ const QUESTION_BANK=[
   bin('supply','Supply','Do you feel like you’re running out of time, or like there’s more of it than you’ll ever use?',
       ['scarce','Running out'], ['plenty','More than enough'])
 ];
-/* the first five are the linear lead and must always be asked — month, febdays,
-   alarms, vacations and decades, each laying down a layer of the artwork. This
-   reads the ARRAY, so the order above is the order asked: move a question inside
-   the first five and the lead reorders with it, nothing else to change. */
-QUESTION_BANK.slice(0,5).forEach(q=>{ q.pinned=true; });
+/* the first seven are the base of the poster and must always be asked — shape,
+   density, month, febdays, alarms, vacations and decades, each laying down a
+   layer of the artwork. This reads the ARRAY, so the order above is the order
+   asked: move a question inside the first seven and the lead reorders with it,
+   nothing else to change. */
+QUESTION_BANK.slice(0,7).forEach(q=>{ q.pinned=true; });
 const BANK=Object.fromEntries(QUESTION_BANK.map(q=>[q.id,q]));
 
 /* ---------------------------------------------------------------------
@@ -1613,10 +1692,17 @@ const beamCountFromAnswers=()=>{
 };
 /* One ring per vacation. This is the whole of the ring stack's wiring: every
    other control on the tool is frozen (see RINGS), so the vacations answer is
-   the only thing that moves. Clamped to the question's own 1..5 so a stale
-   saved answer from an older bank can never ask for a hundred rings. */
-/* '5+' parses to 5 (the tool has five ring definitions); a plain '3' to 3. */
-const ringCountFromAnswers=()=>Math.max(1,Math.min(5,parseInt(ans('vacations'),10)||1));
+   the only thing that moves. Clamped so a stale saved answer from an older
+   bank can never ask for a hundred rings. */
+/* '4+' takes over the FIFTH ring definition — the visual '5+' used to draw
+   (the option was renamed, not the ring count it reaches); a plain '1'..'3'
+   parses straight through. The bank's own fourth ring (a plain '4') is
+   deleted along with the option — no answer can reach it any more. */
+const ringCountFromAnswers=()=>{
+  const v=String(ans('vacations'));
+  if(v==='4+') return 5;
+  return Math.max(1,Math.min(3,parseInt(v,10)||1));
+};
 
 /* One bead per February day. The febdays answer is a string ('28'..'31'); it is
    the snake's bead COUNT and nothing else — every other control on the tool is
@@ -1674,6 +1760,25 @@ const posterInk=()=>{
      the cool colour trade the red-role/blue-role, so the whole sheet swaps. */
   return S.colorSwap ? {red:base.blue, blue:base.red} : base;
 };
+/* Apply the chosen colourway to a markup STRING — one simultaneous pass over the
+   three frozen hexes, exactly what buildSVG does to the whole sheet. Factored
+   out because the sheet is NOT the only writer: the snake, node and ring glides
+   re-emit their own group per frame, straight into the DOM, and an unrecoloured
+   frame there snaps the layer back to red/blue the moment it moves (the
+   revisit-after-colourway bug). Every innerHTML write of layer markup must go
+   through here. Untouched until a colourway is actually chosen. */
+function inkedMarkup(s){
+  if(!isChosen('colorway')) return s;
+  const ink=posterInk();
+  /* ONE pass, not three sequential ones — see the note in buildSVG: a sequential
+     replace lets one swap's output be re-swapped by the next and the sheet
+     collapses to a single colour. */
+  /* #0059FF is the saying layer's own frozen blue (see SAYING_TEXT); its red
+     is the shared red role, so it needs no entry of its own */
+  const map={'#F5242B':ink.red, '#0C55FF':ink.blue, '#004CFF':ink.blue,
+             '#0059FF':ink.blue};
+  return s.replace(/#F5242B|#0C55FF|#004CFF|#0059FF/g, m=>map[m]);
+}
 
 /* Smoke is inert: nothing in this bank is a duration, and the layer paints over
    the type at any strength worth seeing. Left wired but at zero rather than
@@ -2042,15 +2147,14 @@ const NODE={
      the mark horizontal on a tall sheet */
   yCompress:0.45,
   centerInk:'#F5242B', rayInk:'#0C55FF',
-  /* Where the mark sits, as a fraction of the sheet. Lower middle: the snake
-     shares the centre with it, but the node prints OVER the snake (see buildSVG
-     order) — "below" is the layer, not the position. */
-  cx:0.55, cy:0.62,
+  /* Where the mark sits, as a fraction of the sheet — Karin: 0.627 was too low,
+     0.34 was too high, coming back down partway. */
+  cx:0.76, cy:0.55,
   /* One knob over all the fractions below, so the mark's proportions stay the
      tool's while its overall size is a single number to tune. Below 1 because
      at full size the node dominated a sheet it now shares with the month
-     layer. */
-  scale:0.67,
+     layer. 0.67 -> 0.55 on 16 Aug: Karin found the spider still too big. */
+  scale:0.55,
   /* fractions of the poster width, taken from the tool's own defaults
      (elementScale 2.15, spread 700, roughness 9, misreg 6) measured at the
      default sheet's 1050 units — all multiplied through by `scale` */
@@ -2118,15 +2222,25 @@ function nodeRays(B,C){
   const nodeSeed=rolled('alarms');
   const geoRnd=mulberry32((nodeSeed*100003+rays*7919)>>>0);
   const baseR=NODE.baseR*U;
-  /* Clamped against the nearest edges rather than against half the width: the mark is
-     off-centre, so its room is not symmetrical and a centre clamp would let the long
-     rays run off the short side. */
-  const room=Math.min(cx, W-cx, cy/NODE.yCompress, (B.h-cy)/NODE.yCompress)-0.02*W;
-  const maxLen=Math.max(baseR+1, Math.min(NODE.reach*U, room));
+  /* Clamped PER RAY, against the border its own direction runs toward — one
+     global nearest-edge clamp squeezed every ray to the tightest side, so on
+     an off-centre seat the open side read as cramped for no reason. The margin
+     also spends the ELLIPSE radius: the tip mark rides the ray's end, and
+     clamping the ray alone let the ellipse touch the trim. */
+  const margin=0.02*W+ellRx;
+  const reach=NODE.reach*U;
   const ends=[];
   for(let i=0;i<rays;i++){
     const jitter=(geoRnd()-0.5)*(Math.PI*2/rays)*0.75;
     const angle=(i/rays)*Math.PI*2+jitter-Math.PI/2;
+    /* how far THIS direction may run before its tip mark meets a border */
+    const dx=Math.cos(angle), dy=Math.sin(angle)*NODE.yCompress;
+    let lim=reach;
+    if(dx>0) lim=Math.min(lim,(W-cx-margin)/dx);
+    if(dx<0) lim=Math.min(lim,(cx-margin)/-dx);
+    if(dy>0) lim=Math.min(lim,(B.h-cy-margin)/dy);
+    if(dy<0) lim=Math.min(lim,(cy-margin)/-dy);
+    const maxLen=Math.max(baseR+1, lim);
     const len=baseR+(0.35+geoRnd()*0.65)*(maxLen-baseR);
     ends.push([cx+Math.cos(angle)*len, cy+Math.sin(angle)*len*NODE.yCompress]);
   }
@@ -2225,34 +2339,21 @@ function smokeLayer(years,maxYears,seed,B){
 }
 
 /* =====================================================================
-   THE BASE GRID — the bottom layer, drawn straight onto the ground, and the
-   one part of the poster that is decided before the poster is ever shown.
-   shape/density/lineStyle come from S.baseShape/S.baseDensity/S.baseFrac,
-   set once by the three base questions (see the landing sequence below) and
-   never touched again — there is no dot for them and no way back in once
-   finishBase() runs.
+   THE BASE GRID — the bottom layer, drawn straight onto the ground. shape and
+   density are bank questions 1 and 2 now (they used to be asked on the landing
+   screens, before the board was ever shown), so the grid is EARNED the way
+   every other layer is: nothing is drawn until the shape question is chosen,
+   and density then sets how far the chosen grid runs.
+   The arrival dial (the old Q3, whose lateness broke every line into dashes)
+   was removed with its question; the grid's lines are plain solid now.
    ===================================================================== */
 const DENSITY_COLS  ={little:10, enough:16, plenty:20};   // (unused) square: column count
 const DENSITY_RINGS ={little:8,  enough:16, plenty:22};   // circles: ring count
 const DENSITY_SPOKES={little:12, enough:20, plenty:24};   // spokes: how many rays — the density question's three levels
-
-/* Q3's frac (0 = 18:00, 0.5 = 19:00 exactly on time, 1 = 20:00) becomes the
-   stroke style applied to EVERY line of the base grid — every row and column,
-   or every ring and spoke. On time is a plain solid line; early thickens it
-   (growing to ~2.2x at the 18:00 extreme); late breaks it into dashes that
-   shrink and space out further apart the later it gets. Formula taken
-   directly from the confirmed prototype — see base-questions-interaction-spec.md. */
-function lineStyleFromFrac(frac){
-  const d=frac-0.5;
-  if(Math.abs(d)<0.005) return {strokeWidth:1, dasharray:null};
-  if(d>0){
-    const lateness=d/0.5;
-    const dash=Math.max(0.5, 7-lateness*6), gap=1+lateness*7;
-    return {strokeWidth:1, dasharray:dash.toFixed(2)+' '+gap.toFixed(2)};
-  }
-  const earliness=-d/0.5;
-  return {strokeWidth:1+earliness*1.2, dasharray:null};
-}
+/* The sparse GROUND the grid arrives at before the density question is answered.
+   Deliberately sparser than every density level, so answering density can only
+   ADD lines — even "too little" is denser than this default. */
+const DEFAULT_RINGS=4, DEFAULT_SPOKES=8;
 /* True squares, not rectangles: cell size comes from the WIDTH only and the
    same size is reused for the vertical axis, so cells stay square regardless
    of the poster's 7:10 aspect. The bottom row is left to clip rather than
@@ -2304,12 +2405,17 @@ function spokesBaseGrid(nSpokes,style,B,color){
   return s+'</g>';
 }
 function baseGridLayer(C,B){
-  const style=lineStyleFromFrac(S.baseFrac);
+  const style={strokeWidth:1, dasharray:null};   // solid — the arrival dial went with its question
   /* circle shape = concentric circles ONLY; the other shape = a ray/spokes grid.
-     Both replace the old square lattice, which clashed with the interface grid. */
-  if(S.baseShape==='circle')
-    return polarBaseGrid(DENSITY_RINGS[S.baseDensity]||DENSITY_RINGS.enough, style, B, C.grid);
-  return spokesBaseGrid(DENSITY_SPOKES[S.baseDensity]||DENSITY_SPOKES.enough, style, B, C.grid);
+     Both replace the old square lattice, which clashed with the interface grid.
+     Density reads its standing default until its own question is chosen, so the
+     grid that shape puts down never has to guess a count. */
+  /* before the density question is answered the grid stands at the sparse
+     DEFAULT; once it is answered it jumps to the chosen (always denser) level */
+  const dChosen=isChosen('density');
+  if(ans('shape')==='circle')
+    return polarBaseGrid(dChosen ? (DENSITY_RINGS[ans('density')]||DENSITY_RINGS.enough) : DEFAULT_RINGS, style, B, C.grid);
+  return spokesBaseGrid(dChosen ? (DENSITY_SPOKES[ans('density')]||DENSITY_SPOKES.enough) : DEFAULT_SPOKES, style, B, C.grid);
 }
 /* =====================================================================
    THE BEAMS — a ring of cuboids in perspective, printed over everything else.
@@ -3031,8 +3137,16 @@ const SNAKEL={
   highlightInterval:6, strokeWidth:4,
   numberSize:0.55, font:'ThermoTrial-Zero,Georgia,serif',
   /* the box the figure is FITTED into (uniformly, preserving aspect), as fractions
-     of the sheet. Insets on every side keep the snake clear of the sheet edges. */
-  rx:0.13, ry:0.31, rw:0.74, rh:0.40,
+     of the sheet. Insets on every side keep the snake clear of the sheet edges.
+     ry raised 0.31 -> 0.15 per Karin's composition reference: the run now sits in
+     the sheet's upper half, clearing the lower half for what comes later. */
+  rx:0.13, ry:0.15, rw:0.74, rh:0.40,
+  /* THE TOP BORDER, by decision: whatever the length, the run hangs from this
+     line — after the fit, the beads are shifted so the topmost bead's edge
+     touches exactly this fraction of the sheet height. One rule for the shapes,
+     so no length ever rides up into the corner rings — except 28, which hangs
+     from its tail instead (tailTop on SNAKEL_SHAPES[28]). */
+  topLine:0.268,
   /* the tool canvas is landscape ~3:2; the anchors are mapped onto that aspect so
      the shape is not squashed when it lands on the 7:10 sheet (see snakeMarkup). */
   aspect:1.5,
@@ -3073,9 +3187,23 @@ function snakeBridge(x1,y1,r1,x2,y2,r2,merge){
 
 /* The SKELETON changes with the answer: February's three lengths each get their
    own hand-drawn path (Brik canvasState). 29 and 30 are their own shapes; 31 is
-   SNAKEL.anchors, left as it was. Each also carries the merge it was drawn with. */
+   SNAKEL.anchors, left as it was. Each also carries the merge it was drawn with.
+   None of them decides its own height: every length hangs from SNAKEL.topLine. */
 const SNAKEL_SHAPES={
-  28:{merge:0.65, anchors:[
+  /* 31 keeps the frozen SNAKEL.anchors — the entry exists only to carry
+     touchRings: after the topLine hang, the whole run is lifted until its
+     nearest bead KISSES the corner ring stack (slightly into it — see the
+     bite in snakeBeads), per Karin's 16 Aug direction. Computed against
+     RINGS.spanW, not a tuned constant, so the touch holds on both plies. */
+  /* nudge: a last, hand-set offset in sheet fractions, applied after every
+     placement rule — Karin's 16 Aug tune: a bit up (deeper into the rings'
+     reach) and a touch right. */
+  31:{merge:0.85, touchRings:true, nudge:{x:0.012, y:-0.018}, anchors:null},
+  /* tailTop: the 28 run hangs from its TAIL, not from topLine's topmost-bead
+     rule. Its topmost bead is the head (bead 1, far left), so the topLine rule
+     left bead 28 sitting low; Karin wants bead 28's edge kissing her reference
+     line instead — measured off her marked-up render at 0.248 of sheet height. */
+  28:{merge:0.65, tailTop:0.248, anchors:[
     {x:0.2312884221311475,y:0.11385710995085996},{x:0.276812243852459,y:0.28244011056511054},
     {x:0.12203509221311476,y:0.6937672757985258},{x:0.42883580942622945,y:0.4840870700245701},
     {x:0.504719518442623,y:0.8652679668304668},{x:0.7804879610655737,y:0.6387726504914005},
@@ -3091,6 +3219,10 @@ const SNAKEL_SHAPES={
     {x:0.9216380635245902,y:0.46039043304668303},{x:0.9014472336065573,y:0.09791538697788699},
     {x:0.802875256147541,y:0.037786010442260445},{x:0.8034387807377049,y:0.03129798832923833},
     {x:0.7964523565573771,y:0.02526105651105651}]},
+  /* 30's second skeleton (Serpentine export 8ba16642, 16 Aug) was tried and
+     ROLLED BACK the same day: its path ran ~46% longer than the reference, so
+     the run came out either giant-beaded, gappy, or printed small — no scale
+     satisfied all three. The original hand-drawn 30 stays. */
   30:{merge:0.65, anchors:[
     {x:0.10470671106557376,y:0.7645596590909091},{x:0.18322233606557375,y:0.4256180896805897},
     {x:0.400749231557377,y:0.6779215294840294},{x:0.5155353483606557,y:0.18177019348894347},
@@ -3105,15 +3237,13 @@ const SNAKEL_SHAPES={
    controller calls snakeEmit() directly with an INTERPOLATED bead layout, once per
    frame, so the snake can glide between two February lengths without the whole poster
    being repainted. */
-function snakeBeads(B,C){
-  B=B||box();
-  const W=B.w, H=B.h;
-  const shape=SNAKEL_SHAPES[beadCountFromAnswers()];
-  const anchors=shape?shape.anchors:SNAKEL.anchors;
-  /* Map the anchors preserving the tool's landscape aspect (so the shape reads
-     like the Brik preview, not squashed by a non-uniform x/y stretch), then FIT
-     that box uniformly into the sheet region and centre it — the region's insets
-     keep the snake clear of the sheet edges. */
+/* Map a set of anchors into the sheet band and walk it: the tool's landscape
+   aspect first (so the shape reads like the Brik preview, not squashed by a
+   non-uniform x/y stretch), then a uniform FIT into the band, centred — the
+   band's insets keep the run clear of the sheet edges. Returns the arc-length
+   samples the beads walk on. Split out of snakeBeads so a custom skeleton can
+   also measure the DEFAULT skeleton's scale (see sizeK below). */
+function snakeTrace(anchors,W,H){
   const AR=SNAKEL.aspect;
   const V=anchors.map(a=>({x:a.x*AR, y:a.y}));
   let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
@@ -3137,6 +3267,16 @@ function snakeBeads(B,C){
   for(let k=1;k<samp.length;k++) arc.push(arc[k-1]+Math.hypot(samp[k].x-samp[k-1].x, samp[k].y-samp[k-1].y));
   const L=arc[arc.length-1];
   if(!(L>0)) return null;
+  return {samp,arc,L};
+}
+function snakeBeads(B,C){
+  B=B||box();
+  const W=B.w, H=B.h;
+  const shape=SNAKEL_SHAPES[beadCountFromAnswers()];
+  const anchors=(shape&&shape.anchors)?shape.anchors:SNAKEL.anchors;
+  const tr=snakeTrace(anchors,W,H);
+  if(!tr) return null;
+  const samp=tr.samp, arc=tr.arc, L=tr.L;
   const K=L/SNAKEL.spanRef;
   const spacing=SNAKEL.beadSpacing*K, baseR=SNAKEL.beadSize*K, sw=SNAKEL.strokeWidth*K;
   const count=beadCountFromAnswers();
@@ -3154,6 +3294,46 @@ function snakeBeads(B,C){
     beads.push({index:b+1, x:pos.x, y:pos.y, r:Math.max(4*K, baseR*taper)});
   }
   if(!beads.length) return null;
+  /* THE TOP BORDER. The four skeletons reach different heights, and the spline
+     overshoots its anchors besides, so the fit alone cannot promise where the
+     run's top lands. Measured and shifted instead: the topmost bead's EDGE is
+     put exactly on SNAKEL.topLine, whatever the length. */
+  let minTop=1e9;
+  beads.forEach(b=>{ if(b.y-b.r<minTop) minTop=b.y-b.r; });
+  let shift=SNAKEL.topLine*H-minTop;
+  /* ...except a shape that carries tailTop: then the LAST bead is the anchor —
+     its top edge lands on tailTop*H — because on that skeleton the topmost bead
+     is the head and the topLine rule says nothing about where the tail ends up
+     (see the note on SNAKEL_SHAPES[28]). */
+  if(shape && shape.tailTop!=null){
+    const tail=beads[beads.length-1];
+    shift=shape.tailTop*H-(tail.y-tail.r);
+  }
+  beads.forEach(b=>{ b.y+=shift; });
+  /* ...and a shape that carries touchRings (31) then CLIMBS: the run is lifted
+     until its nearest bead reaches the corner ring stack, plus a small bite so
+     the contact reads as a touch rather than a hairline miss. Solved against
+     the rings' own placement (outer radius spanW*W/2, hung in the top-right
+     corner), so the kiss holds at any format. */
+  if(shape && shape.touchRings){
+    const R=RINGS.spanW*W/2, rcx=W-R, rcy=R;
+    let need=1e9;
+    beads.forEach(b=>{
+      const dx=Math.abs(b.x-rcx), reach=R+b.r;
+      if(dx>=reach || b.y<=rcy) return;
+      const d=(b.y-rcy)-Math.sqrt(reach*reach-dx*dx);
+      if(d<need) need=d;
+    });
+    if(need<1e9 && need>0){
+      const bite=W*0.01;
+      beads.forEach(b=>{ b.y-=(need+bite); });
+    }
+  }
+  /* the shape's hand-set nudge, if any — sheet fractions, applied LAST so it
+     rides on top of whatever rule placed the run. */
+  if(shape && shape.nudge){
+    beads.forEach(b=>{ b.x+=shape.nudge.x*W; b.y+=shape.nudge.y*H; });
+  }
   const merge=shape?shape.merge:SNAKEL.metaballMerge;
   return {beads, sw, merge, K};
 }
@@ -3222,6 +3402,193 @@ function barColsFromAnswers(){
   const idx=raw==null ? 0 : Math.round((raw-min)/step);   // 0..9 -> 10y..100y
   return idx + 3;                                          // 10y -> 3 columns ... 100y -> 12
 }
+
+/* ===== ported lattice engine (the sixweek question) — inserted from lattice/engine.js ===== */
+/* ==== LATTICE (Brik Geometric Lattice Generator, sixweek: week vs weekend) ==
+   Ported 1:1 from the tool at its native 700x1000 canvas (== poster). The
+   generation half is verbatim. Preset settled 16 Aug from Karin's slider
+   screenshots and her two 700x1000 PNG exports — the HTML exports could not be
+   trusted, Brik drops the hand-drawn canvasState from them, so the painted and
+   erased cells were decoded from the PNGs' pixels instead (see PAINTED_UV).
+   invert_ratio holds at 206 (ir past 1 simply inverts every cross), and the
+   painted/erased pairs are kept the way the tool itself keeps them: normalised
+   u,v fractions of the grid, resolved against the CURRENT grid at draw time
+   (Math.round(u*cols)), so the hand composition holds its place on the sheet at
+   any square_size. Wrapped in an IIFE because the poster already defines
+   mulberry32. ==== */
+const latticeLayer = (function(){
+  const FIXED = {"seed":753,"square_size":16,"density":27,"falloff":165,"origin":{"x":-0.99,"y":-0.96},"shape_scale":63,"show_frames":true,"frame_opacity":100,"show_stroke":true,"line_thickness":0};
+  /* week -> weekend, off Karin's slider screenshots (16 Aug): ONE value moves,
+     the cross weight. Everything else sits still at both ends — invert stays
+     206, so every cross is always inverted, and the solid squares simply grow
+     in number as the bar slides toward the weekend. */
+  const CIRCLE = [6, 6];
+  const PLUS   = [5, 5];
+  const CROSS  = [0, 80];
+  const DIAG   = [10, 10];
+  const INVERT = [206, 206];
+  /* the hand composition, decoded cell-by-cell from Karin's two 700x1000 PNG
+     exports (16 Aug 15:39): every active cell in the image that the generative
+     baseline does not produce is painted, every baseline cell missing from the
+     image is erased. 257 active cells, identical at both ends, 208 painted +
+     82 erased (+1 edge cell at [42,43] forced painted: its weekend glyph reads
+     plus in the export but rolls cross here — one cell, right trim). */
+  const PAINTED_UV = [[0.0,0.0],[0.0,0.016129],[0.0,0.032258],[0.0,0.048387],[0.0,0.064516],[0.0,0.080645],[0.0,0.096774],[0.0,0.129032],[0.0,0.145161],[0.0,0.290323],[0.0,0.306452],[0.0,0.322581],[0.0,0.403226],[0.0,0.419355],[0.0,0.5],[0.0,0.516129],[0.0,0.532258],[0.0,0.596774],[0.0,0.612903],[0.0,0.790323],[0.0,0.806452],[0.023256,0.0],[0.023256,0.016129],[0.023256,0.032258],[0.023256,0.048387],[0.023256,0.064516],[0.023256,0.080645],[0.023256,0.096774],[0.023256,0.112903],[0.023256,0.145161],[0.023256,0.33871],[0.023256,0.370968],[0.023256,0.387097],[0.023256,0.403226],[0.023256,0.516129],[0.023256,0.532258],[0.023256,0.596774],[0.023256,0.806452],[0.023256,0.822581],[0.046512,0.0],[0.046512,0.016129],[0.046512,0.032258],[0.046512,0.080645],[0.046512,0.096774],[0.046512,0.112903],[0.046512,0.129032],[0.046512,0.33871],[0.046512,0.354839],[0.046512,0.370968],[0.046512,0.516129],[0.046512,0.532258],[0.046512,0.580645],[0.046512,0.596774],[0.046512,0.822581],[0.046512,0.83871],[0.069767,0.0],[0.069767,0.032258],[0.069767,0.080645],[0.069767,0.096774],[0.069767,0.112903],[0.069767,0.129032],[0.069767,0.33871],[0.069767,0.354839],[0.069767,0.532258],[0.069767,0.580645],[0.069767,0.83871],[0.093023,0.0],[0.093023,0.016129],[0.093023,0.032258],[0.093023,0.048387],[0.093023,0.080645],[0.093023,0.096774],[0.093023,0.112903],[0.093023,0.532258],[0.093023,0.548387],[0.093023,0.580645],[0.093023,0.83871],[0.116279,0.0],[0.116279,0.016129],[0.116279,0.032258],[0.116279,0.048387],[0.116279,0.064516],[0.116279,0.096774],[0.116279,0.548387],[0.116279,0.564516],[0.116279,0.580645],[0.116279,0.83871],[0.139535,0.0],[0.139535,0.016129],[0.139535,0.032258],[0.139535,0.048387],[0.139535,0.064516],[0.139535,0.096774],[0.139535,0.548387],[0.139535,0.564516],[0.162791,0.0],[0.162791,0.016129],[0.162791,0.032258],[0.162791,0.048387],[0.162791,0.064516],[0.162791,0.080645],[0.162791,0.096774],[0.162791,0.548387],[0.162791,0.564516],[0.186047,0.0],[0.186047,0.016129],[0.186047,0.032258],[0.186047,0.048387],[0.186047,0.064516],[0.186047,0.096774],[0.186047,0.548387],[0.209302,0.0],[0.209302,0.016129],[0.209302,0.032258],[0.232558,0.0],[0.232558,0.016129],[0.232558,0.032258],[0.232558,0.112903],[0.255814,0.0],[0.255814,0.016129],[0.255814,0.032258],[0.255814,0.112903],[0.27907,0.0],[0.27907,0.016129],[0.302326,0.112903],[0.325581,0.112903],[0.348837,0.112903],[0.348837,0.129032],[0.348837,0.580645],[0.372093,0.129032],[0.372093,0.596774],[0.395349,0.596774],[0.55814,0.564516],[0.581395,0.580645],[0.604651,0.580645],[0.627907,0.451613],[0.627907,0.467742],[0.627907,0.774194],[0.627907,0.790323],[0.651163,0.467742],[0.651163,0.758065],[0.651163,0.774194],[0.651163,0.790323],[0.651163,0.806452],[0.674419,0.467742],[0.674419,0.483871],[0.674419,0.806452],[0.674419,0.887097],[0.697674,0.483871],[0.697674,0.806452],[0.697674,0.903226],[0.72093,0.677419],[0.72093,0.806452],[0.72093,0.887097],[0.744186,0.66129],[0.744186,0.677419],[0.744186,0.806452],[0.744186,0.887097],[0.767442,0.66129],[0.767442,0.790323],[0.767442,0.806452],[0.790698,0.66129],[0.790698,0.741935],[0.790698,0.790323],[0.813953,0.435484],[0.813953,0.66129],[0.813953,0.774194],[0.813953,0.790323],[0.837209,0.66129],[0.837209,0.758065],[0.837209,0.774194],[0.860465,0.66129],[0.860465,0.725806],[0.860465,0.741935],[0.860465,0.758065],[0.860465,0.870968],[0.883721,0.66129],[0.883721,0.677419],[0.883721,0.693548],[0.883721,0.709677],[0.883721,0.725806],[0.883721,0.854839],[0.883721,0.870968],[0.906977,0.677419],[0.906977,0.693548],[0.906977,0.83871],[0.906977,0.854839],[0.930233,0.290323],[0.930233,0.83871],[0.930233,0.854839],[0.953488,0.306452],[0.953488,0.322581],[0.953488,0.467742],[0.953488,0.483871],[0.953488,0.66129],[0.953488,0.677419],[0.953488,0.758065],[0.976744,0.322581],[0.976744,0.33871],[0.976744,0.483871],[0.976744,0.5],[0.976744,0.645161],[0.976744,0.66129],[0.976744,0.677419],[0.976744,0.774194],[0.976744,0.790323],[0.976744,0.854839],[0.976744,0.870968],[0.976744,0.693548]];
+  const ERASED_UV  = [[0.0,0.33871],[0.0,0.451613],[0.0,0.645161],[0.0,0.709677],[0.023256,0.306452],[0.046512,0.241935],[0.046512,0.306452],[0.046512,0.403226],[0.046512,0.564516],[0.046512,0.629032],[0.046512,0.790323],[0.069767,0.645161],[0.093023,0.290323],[0.093023,0.370968],[0.093023,0.387097],[0.093023,0.435484],[0.093023,0.483871],[0.116279,0.241935],[0.116279,0.290323],[0.116279,0.370968],[0.116279,0.66129],[0.116279,0.790323],[0.139535,0.322581],[0.139535,0.33871],[0.139535,0.387097],[0.139535,0.451613],[0.139535,0.483871],[0.139535,0.790323],[0.162791,0.258065],[0.162791,0.33871],[0.162791,0.483871],[0.186047,0.241935],[0.186047,0.451613],[0.186047,0.467742],[0.209302,0.258065],[0.209302,0.274194],[0.209302,0.354839],[0.209302,0.387097],[0.209302,0.5],[0.209302,0.693548],[0.232558,0.290323],[0.232558,0.306452],[0.232558,0.370968],[0.232558,0.435484],[0.232558,0.483871],[0.255814,0.225806],[0.255814,0.241935],[0.255814,0.467742],[0.255814,0.516129],[0.27907,0.129032],[0.27907,0.387097],[0.27907,0.532258],[0.27907,0.629032],[0.302326,0.129032],[0.302326,0.258065],[0.325581,0.274194],[0.325581,0.370968],[0.372093,0.532258],[0.395349,0.322581],[0.395349,0.33871],[0.395349,0.435484],[0.44186,0.258065],[0.44186,0.403226],[0.44186,0.419355],[0.465116,0.209677],[0.488372,0.241935],[0.511628,0.177419],[0.511628,0.354839],[0.511628,0.596774],[0.534884,0.290323],[0.581395,0.016129],[0.581395,0.032258],[0.581395,0.5],[0.604651,0.016129],[0.604651,0.080645],[0.627907,0.129032],[0.627907,0.145161],[0.651163,0.290323],[0.674419,0.080645],[0.674419,0.193548],[0.697674,0.096774],[0.744186,0.145161]];
+
+  function lm32(seed){ let a=seed>>>0; return function(){ a|=0; a=(a+0x6d2b79f5)|0; let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+  function hashCell(col,row,seed){ let h=(col*374761393+row*668265263+seed*2246822519)>>>0; h=Math.imul(h^(h>>>13),1274126177)>>>0; h^=h>>>16; return (h>>>0)/4294967296; }
+  function randShape(rng,wc,wp,wx,wd){ const tot=wc+wp+wx+wd; if(tot<=0){ const s=['circle','plus','cross','diagonal']; return s[Math.floor(rng()*4)]; } let r=rng()*tot; if(r<wc)return'circle'; r-=wc; if(r<wp)return'plus'; r-=wp; if(r<wx)return'cross'; return'diagonal'; }
+  function makePainted(P,col,row){ const prng=lm32(((col+1)*73856093 ^ (row+1)*19349663 ^ (P.seed*83492791))>>>0); const shape=randShape(prng,P.weight_circle,P.weight_plus,P.weight_cross,P.weight_diagonal); const dir=prng()<0.5?1:-1; return {active:true,shape,invertHash:hashCell(col,row,P.seed),diagonalDirection:dir,__painted:true}; }
+  function gen(P,cols,rows){
+    const cells=[]; const rng=lm32(P.seed); const density=P.density/100, falloff=P.falloff/100;
+    const o=P.origin||{x:-1,y:-1}; const onx=(o.x+1)/2, ony=(o.y+1)/2;
+    const maxD=Math.max(Math.hypot(onx,ony),Math.hypot(1-onx,ony),Math.hypot(onx,1-ony),Math.hypot(1-onx,1-ony))||1;
+    for(let r=0;r<rows;r++){ const row=[]; const ny=rows>1?r/(rows-1):0;
+      for(let c=0;c<cols;c++){ const nx=cols>1?c/(cols-1):0; const nd=Math.hypot(nx-onx,ny-ony)/maxD;
+        const active=rng()<density*(1-nd*falloff); const shape=randShape(rng,P.weight_circle,P.weight_plus,P.weight_cross,P.weight_diagonal);
+        row.push({active,shape,invertHash:hashCell(c,r,P.seed),diagonalDirection:rng()<0.5?1:-1}); }
+      cells.push(row); }
+    return cells;
+  }
+  const isInv=(cell,ir)=> !!cell && cell.shape==='cross' && cell.invertHash<ir;
+
+  /* The cell model alone — generate, then apply the hand overrides — shared by
+     the batched static render (core) and the per-cell entrance render below,
+     so the two can never disagree about which cells are active. */
+  function buildModel(P,W,H){
+    const cs=Math.max(4,P.square_size), cols=Math.max(1,Math.floor(W/cs)), rows=Math.max(1,Math.floor(H/cs));
+    /* The tool centres the cell grid on the canvas, which split the leftover
+       units (whatever W and H leave over whole cells) evenly around it — a
+       hairline of bare paper along the sheet's TOP and LEFT edges. Anchored to
+       the top-left corner instead, by decision: the first row and the first
+       column sit flush with their edges, and all the slack collects at the
+       right and the foot, where the composition absorbs it. */
+    const ox=0, oy=0;
+    const cells=gen(P,cols,rows);
+    for(const [u,v] of ERASED_UV){ const c=Math.round(u*cols), r=Math.round(v*rows); if(c<0||r<0||c>=cols||r>=rows)continue; if(cells[r]&&cells[r][c])cells[r][c].active=false; }
+    for(const [u,v] of PAINTED_UV){ const c=Math.round(u*cols), r=Math.round(v*rows); if(c<0||r<0||c>=cols||r>=rows)continue; if(!cells[r]||!cells[r][c])continue; if(!cells[r][c].active||!cells[r][c].__painted)cells[r][c]=makePainted(P,c,r); }
+    return {cells,cols,rows,cs,ox,oy};
+  }
+
+  /* the tool's five draw() phases, emitted as SVG content (no wrapping <svg>) */
+  function core(P,W,H,shapeColor,fillColor){
+    const {cells,cols,rows,cs,ox,oy}=buildModel(P,W,H);
+    const ir=(P.invert_ratio||0)/100, scale=P.shape_scale/100, radius=cs*scale*0.5;
+    let rects='';
+    if(P.show_frames && P.frame_opacity>0){
+      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const cell=cells[r][c]; if(!cell.active)continue;
+        const inv=isInv(cell,ir); const x0=Math.floor(ox+c*cs),y0=Math.floor(oy+r*cs),x1=Math.ceil(ox+(c+1)*cs),y1=Math.ceil(oy+(r+1)*cs);
+        rects+='<rect x="'+x0+'" y="'+y0+'" width="'+(x1-x0)+'" height="'+(y1-y0)+'" fill="'+(inv?shapeColor:fillColor)+'"/>'; }
+    }
+    const nSeg=[],iSeg=[],nArc=[],iArc=[]; let cur=nSeg; const add=(a,b,cc,d)=>cur.push([a,b,cc,d]);
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const cell=cells[r][c]; if(!cell.active)continue;
+      const inv=isInv(cell,ir); const arcs=inv?iArc:nArc;
+      const cx=ox+(c+0.5)*cs, cy=oy+(r+0.5)*cs, half=cs*0.5;
+      if(P.show_stroke){ cur=nSeg; const l=cx-half,rr=cx+half,t=cy-half,b=cy+half; add(l,t,rr,t); add(rr,t,rr,b); add(rr,b,l,b); add(l,b,l,t); }
+      cur=inv?iSeg:nSeg;
+      switch(cell.shape){
+        case 'circle': arcs.push([cx,cy,radius]); break;
+        case 'plus': add(cx-radius,cy,cx+radius,cy); add(cx,cy-radius,cx,cy+radius); break;
+        case 'cross': add(cx-radius,cy-radius,cx+radius,cy+radius); add(cx+radius,cy-radius,cx-radius,cy+radius); break;
+        case 'diagonal': { const d=cell.diagonalDirection; add(cx-radius,cy-radius*d,cx+radius,cy+radius*d); break; }
+      }
+    }
+    const qp=v=>Math.round(v*100)/100;
+    function dedupe(segs){ const seen=new Set(),out=[]; for(const s of segs){ let a=[qp(s[0]),qp(s[1])],b=[qp(s[2]),qp(s[3])]; if(a[0]>b[0]||(a[0]===b[0]&&a[1]>b[1])){const t=a;a=b;b=t;} const k=a[0]+','+a[1]+'-'+b[0]+','+b[1]; if(seen.has(k))continue; seen.add(k); out.push(s);} return out; }
+    const nU=dedupe(nSeg), iU=dedupe(iSeg);
+    const lw=Math.max(1,Math.round(P.line_thickness)); const odd=(lw%2===1)?0.5:0; const snap=v=>Math.round(v)+odd;
+    function pass(segs,arcs,color){ if(!segs.length&&!arcs.length)return''; let d=''; for(const s of segs)d+='M'+snap(s[0])+' '+snap(s[1])+'L'+snap(s[2])+' '+snap(s[3]); let ci=''; for(const a of arcs)ci+='<circle cx="'+snap(a[0])+'" cy="'+snap(a[1])+'" r="'+a[2]+'"/>'; let o=''; if(d)o+='<path d="'+d+'" fill="none" stroke="'+color+'" stroke-width="'+lw+'" stroke-linecap="round" stroke-linejoin="round"/>'; if(ci)o+='<g fill="none" stroke="'+color+'" stroke-width="'+lw+'">'+ci+'</g>'; return o; }
+    return rects + pass(nU,nArc,shapeColor) + pass(iU,iArc,fillColor);
+  }
+
+  /* ENTRANCE ONLY: one <g class="lcell"> per active cell (fill + border + shape
+     mark), each carrying its own bake-in reveal delay (--cd) so the CSS hard-cut
+     rule below can pop every cell in on its own schedule — a diagonal wavefront
+     sweeping out from the top-left origin. `ci` is Manhattan distance from the
+     top-left corner (col+row): every cell on the same anti-diagonal shares one
+     delay, which is what makes the sweep read as a straight advancing front
+     rather than a scatter. The front's ADVANCE is what eases out (delays are
+     spaced by an eased curve across the diagonals); each individual cell's own
+     reveal stays a true instant cut — no fade, matching the rest of the bank's
+     no-fade language for hard marks.
+     Used ONLY on the very first paint (see latticeLayer): every later paint —
+     a bar drag, a revisit — falls through to the efficient batched core() above
+     and this per-cell markup is never re-emitted. */
+  function entranceMarkup(P,W,H,shapeColor,fillColor){
+    const {cells,cols,rows,cs,ox,oy}=buildModel(P,W,H);
+    const ir=(P.invert_ratio||0)/100, scale=P.shape_scale/100, radius=cs*scale*0.5;
+    const lw=Math.max(1,Math.round(P.line_thickness));
+    const maxCi=Math.max(1,(cols-1)+(rows-1));
+    const TOTAL_MS=900;                          // the whole sheet's sweep — ease-out band, upper end (full-bleed reveal)
+    const STEP_MS=240;                            // must match the CSS animation-duration (see latticeCellIn) —
+                                                   // backed out of the delay so a cell's step still lands at its
+                                                   // eased moment in the sweep, not 240ms late
+    const easeOutCubic=x=>1-Math.pow(1-x,3);
+    const f=n=>n.toFixed(1);
+    let out='';
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const cell=cells[r][c]; if(!cell.active) continue;
+      const inv=isInv(cell,ir);
+      const x0=Math.floor(ox+c*cs), y0=Math.floor(oy+r*cs), x1=Math.ceil(ox+(c+1)*cs), y1=Math.ceil(oy+(r+1)*cs);
+      const cx=ox+(c+0.5)*cs, cy=oy+(r+0.5)*cs, half=cs*0.5;
+      const bgFill=inv?shapeColor:fillColor;         // Phase 1's per-cell fill
+      const markColor=inv?fillColor:shapeColor;      // Phase 2's mark colour (the border stays shapeColor either way)
+      const delay=Math.max(0, Math.round(TOTAL_MS*easeOutCubic((c+r)/maxCi))-STEP_MS);
+      let mark='';
+      if(P.show_frames && P.frame_opacity>0){
+        mark+='<rect x="'+x0+'" y="'+y0+'" width="'+(x1-x0)+'" height="'+(y1-y0)+'" fill="'+bgFill+'"/>';
+      }
+      if(P.show_stroke){
+        mark+='<rect x="'+f(cx-half)+'" y="'+f(cy-half)+'" width="'+f(cs)+'" height="'+f(cs)+'" fill="none" stroke="'+shapeColor+'" stroke-width="'+lw+'" stroke-linejoin="round"/>';
+      }
+      switch(cell.shape){
+        case 'circle':
+          mark+='<circle cx="'+f(cx)+'" cy="'+f(cy)+'" r="'+f(radius)+'" fill="none" stroke="'+markColor+'" stroke-width="'+lw+'" stroke-linecap="round"/>'; break;
+        case 'plus':
+          mark+='<path d="M'+f(cx-radius)+' '+f(cy)+'L'+f(cx+radius)+' '+f(cy)+'M'+f(cx)+' '+f(cy-radius)+'L'+f(cx)+' '+f(cy+radius)+'"'
+              + ' fill="none" stroke="'+markColor+'" stroke-width="'+lw+'" stroke-linecap="round"/>'; break;
+        case 'cross':
+          mark+='<path d="M'+f(cx-radius)+' '+f(cy-radius)+'L'+f(cx+radius)+' '+f(cy+radius)+'M'+f(cx+radius)+' '+f(cy-radius)+'L'+f(cx-radius)+' '+f(cy+radius)+'"'
+              + ' fill="none" stroke="'+markColor+'" stroke-width="'+lw+'" stroke-linecap="round"/>'; break;
+        case 'diagonal': { const d=cell.diagonalDirection;
+          mark+='<path d="M'+f(cx-radius)+' '+f(cy-radius*d)+'L'+f(cx+radius)+' '+f(cy+radius*d)+'"'
+              + ' fill="none" stroke="'+markColor+'" stroke-width="'+lw+'" stroke-linecap="round"/>'; break; }
+      }
+      out+='<g class="lcell" style="--cd:'+delay+'ms">'+mark+'</g>';
+    }
+    return out;
+  }
+
+  /* the poster layer: read the week/weekend bar, interpolate, fill the sheet. */
+  return function latticeLayer(B,C){
+    const raw=ans('sixweek');
+    const t=Math.max(0,Math.min(1, (Number.isFinite(+raw)?+raw:50)/100));
+    const lerp=(pair)=>pair[0]+(pair[1]-pair[0])*t;
+    const P=Object.assign({},FIXED,{
+      weight_circle:   lerp(CIRCLE),
+      weight_plus:     lerp(PLUS),
+      weight_cross:    lerp(CROSS),
+      weight_diagonal: lerp(DIAG),
+      invert_ratio:    lerp(INVERT)
+    });
+    /* red role hex so the colourway recolours the X like every other element;
+       the near-paper square fill stays out of the colourway map. First paint
+       (entered has not yet tagged 'sixweek') gets the per-cell entrance render;
+       every later paint — a bar drag, a revisit — gets the efficient batched
+       one, and the entrance markup is never re-emitted (see entranceMarkup). */
+    const inner = entered.has('sixweek')
+      ? core(P,700,1000,'#F5242B','#FAF8F8')
+      : entranceMarkup(P,700,1000,'#F5242B','#FAF8F8');
+    return '<svg x="0" y="0" width="'+B.w+'" height="'+B.h+'" viewBox="0 0 700 1000" preserveAspectRatio="none">'+inner+'</svg>';
+  };
+})();
+/* How the lattice PRINTS against the layers above it, now that it sits under
+   the rings, the snake and the node. Tuned live from the dev panel (see the
+   DEV_SKIP block) and read by buildSVG on every paint — the values here are
+   the shipping defaults; the panel exists to find better ones. */
+const LATTICE_STYLE={blend:'normal', opacity:1};
+
 function barLayer(B,C){
   const W=B.w, H=B.h;
   const cols=Math.max(1, barColsFromAnswers());
@@ -3234,14 +3601,25 @@ function barLayer(B,C){
      texture is Brik's riso paper GRAIN laid over the fills, not a ruffled outline.
      Columns alternate which ink role a cell belongs to; one clip of every cell
      confines the grain to the ink (Brik's source-atop). */
+  /* BLEED: the bottom row runs a few units past the sheet edge and lets the
+     svg clip it. The row's own bottom already sat exactly on H, but the poster
+     is scaled to the screen and tilts with the pointer, so a hairline of paper
+     could still open along the foot at some sizes — the bleed makes the band
+     meet the edge whatever the rasteriser does with the last fraction of a
+     pixel. */
+  const bleed=6;
   let blue='', red='', clip='';
   for(let r=0;r<rows;r++){
     const cellY=y0+bandH-(r+1)*cellH;      // r=0 is the bottom row, stacking up
+    const h=cellH+(r===0?bleed:0);
     for(let c=0;c<cols;c++){
       if((c+r)%2!==0) continue;            // the brick-offset checkerboard
-      const rect='<rect x="'+f(c*cellW)+'" y="'+f(cellY)+'" width="'+f(cellW)+'" height="'+f(cellH)+'"/>';
-      clip+=rect;
-      if(c%2===0) blue+=rect; else red+=rect;
+      const geom='x="'+f(c*cellW)+'" y="'+f(cellY)+'" width="'+f(cellW)+'" height="'+f(h)+'"';
+      clip+='<rect '+geom+'/>';                 // clip copy stays plain (never animated)
+      /* visible brick carries its COLUMN index so the entrance can lay the band
+         in column by column (see .hl.enter[data-q="decades"] .brick) */
+      const vrect='<rect class="brick" style="--ci:'+c+'" '+geom+'/>';
+      if(c%2===0) blue+=vrect; else red+=vrect;
     }
   }
   /* Brik's grain: a fine speckle that is HALF black, HALF white at low alpha, so it
@@ -3269,8 +3647,58 @@ function barLayer(B,C){
     + '<g fill="'+BLUE+'">'+blue+'</g>'
     + '<g fill="'+RED+'">'+red+'</g>'
     + '<g clip-path="url(#'+cid+')" opacity="'+BARL.grain.toFixed(2)+'">'
-    +   '<rect x="0" y="'+f(y0)+'" width="'+f(W)+'" height="'+f(bandH)+'" filter="url(#'+gid+')"/>'
+    +   '<rect x="0" y="'+f(y0)+'" width="'+f(W)+'" height="'+f(bandH+bleed)+'" filter="url(#'+gid+')"/>'
     + '</g>';
+}
+
+/* =====================================================================
+   THE WORD — the saying answer landing on the sheet, the poster's only
+   typography. Two stacked words in Helvetica Regular, PAPER-filled and
+   ink-stroked, so the artwork shows through only at the stroke: the words
+   read as cut out of the sheet rather than printed on it.
+
+     Regret   -> LONG GONE   (blue)
+     Trust    -> STILL HERE  (blue)
+     Presence -> RIGHT NOW   (red)
+     Worry    -> WHAT NOW    (red)
+
+   MEASURED OFF THE FIGMA FRAMES (2894:6596/6616/6625/6635, 1981 x 2825),
+   not eyeballed: text box left 106, cap top 1745, Helvetica Regular 500,
+   line pitch 420 (0.84 leading), two lines flush left at natural tracking,
+   stroke ~4.9. Red is #F5242B — the sheet's own red role, so the colourway
+   swaps it for free; blue is #0059FF, this layer's one frozen ink, added to
+   inkedMarkup's map. Every number is stored as a fraction of the frame, so
+   the block scales with any sheet.
+   Each line carries textLength = its Helvetica advance sum, so the run is
+   pinned to the Figma width even if the browser substitutes the face.
+   ===================================================================== */
+const SAYING_X   =106/1981;    // left edge, fraction of the sheet width
+const SAYING_TOP =1745/2825;   // line 1 cap top, fraction of the sheet height
+const SAYING_FS  =500/2825;    // font-size, fraction of the sheet height
+const SAYING_LH  =420/500;     // line pitch, em
+const SAYING_CAP =0.717;       // Helvetica cap height, em (cap top -> baseline)
+const SAYING_SW  =2.9/1981;    // stroke width, fraction of the sheet width (measured 4.9, taken 2pt lighter by decision)
+/* per-word advance width in em, summed from Helvetica's own glyph metrics */
+const SAYING_EM={LONG:2.834, GONE:2.945, STILL:2.668, HERE:2.778,
+                 RIGHT:3.111, NOW:2.444, WHAT:2.944};
+const SAYING_TEXT={
+  Regret:  {ink:'#0059FF', lines:['LONG','GONE']},
+  Trust:   {ink:'#0059FF', lines:['STILL','HERE']},
+  Presence:{ink:'#F5242B', lines:['RIGHT','NOW']},
+  Worry:   {ink:'#F5242B', lines:['WHAT','NOW']}
+};
+function sayingLayer(B,C){
+  const cfg=SAYING_TEXT[ans('saying')]; if(!cfg) return '';
+  const fs=SAYING_FS*B.h, x=SAYING_X*B.w, sw=Math.max(1,SAYING_SW*B.w);
+  const base1=SAYING_TOP*B.h + SAYING_CAP*fs;
+  let s='<g fill="'+C.bg+'" stroke="'+cfg.ink+'" stroke-width="'+sw.toFixed(2)+'"'
+      + ' font-family="Helvetica, \'Helvetica Neue\', Arial, sans-serif"'
+      + ' font-weight="400" font-size="'+fs.toFixed(1)+'">';
+  cfg.lines.forEach((t,i)=>{
+    s+='<text x="'+x.toFixed(1)+'" y="'+(base1+i*SAYING_LH*fs).toFixed(1)+'"'
+     + ' textLength="'+(SAYING_EM[t]*fs).toFixed(1)+'" lengthAdjust="spacing">'+t+'</text>';
+  });
+  return s+'</g>';
 }
 
 /* =====================================================================
@@ -3286,20 +3714,22 @@ function buildSVG(F){
      travelling between two ratios during a format change. At rest the frame's
      ratio and this viewBox are the same number, so nothing is distorted.
 
-     The poster carries NO TEXT at all — no wordmark, no date, no name, no
-     age/birthdate, no per-question labels. It is ground, base grid and the
-     answered layers, nothing else; everything identifying is kept in the data
-     record (payload()), not on the artwork itself.
+     The poster carries no identifying text — no wordmark, no date, no name, no
+     age/birthdate, no per-question labels. Its ONE piece of typography is the
+     saying answer's word pair (sayingLayer), which is artwork, not label;
+     everything identifying is kept in the data record (payload()), not on the
+     artwork itself.
 
-     Every layer above the grid is EARNED: it draws only once its own question
-     has actually been answered (isChosen), never merely reached. So the sheet
-     revealed after the three base questions is bare grid, each mark arrives
-     when the person puts it there, and a skipped question leaves nothing
-     behind rather than quietly printing its default. */
+     Every layer is EARNED, the base grid now included: it draws only once its
+     own question has actually been answered (isChosen), never merely reached.
+     So the sheet the board opens on is bare ground, the grid arrives with the
+     shape question, each mark arrives when the person puts it there, and a
+     skipped question leaves nothing behind rather than quietly printing its
+     default. */
   const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+B.w+' '+B.h+'"'
     + ' width="'+B.w+'" height="'+B.h+'" preserveAspectRatio="none">'
     + '<rect width="'+B.w+'" height="'+B.h+'" fill="'+C.bg+'"/>'
-    + baseGridLayer(C,B)
+    + (isChosen('shape') ? '<g class="hl" data-q="basegrid" style="pointer-events:none">'+baseGridLayer(C,B)+'</g>' : '')
     /* the answered layers live in .art so a hovered one can be picked out and the
        rest dimmed (see the .hl hover rules). Each layer is a single child of .art;
        .hl marks the ones wired to a hover note (month is the first). */
@@ -3315,7 +3745,30 @@ function buildSVG(F){
     + (isChosen('month')  ? '<g class="hl" data-q="month">'+monthLayer(B,C)+'</g>' : '')
     /* the decades checkerboard hugs the foot, above the month silhouette but below
        the rings, snake and node, which all print over it */
-    + (isChosen('decades') ? '<g class="hl" data-q="decades" opacity="0.85">'+barLayer(B,C)+'</g>' : '')
+    /* A bar layer has a standing DEFAULT, so it can (and should) show the moment
+       the question is reached — not only once the handle is touched. That also
+       gives the entrance a single clean draw to run on (openQuestion draws once
+       on open), which the touch-driven path never provides: a drag re-renders
+       every stop and would strip .enter before it played. Skip still hides it. */
+    + ((isChosen('decades') || (S.reached['decades'] && !S.skipped['decades'])) ? '<g class="hl" data-q="decades" opacity="0.85" style="--cstep:'+(800/Math.max(1,barColsFromAnswers())).toFixed(1)+'ms">'+barLayer(B,C)+'</g>' : '')
+    /* sixweek — the week/weekend lattice, full-bleed. Moved BELOW the rings, the
+       snake and the node by decision: the lattice is weather across the sheet,
+       and the marks those three make print over it. Its red X uses the red-role
+       hex (#F5242B), so the colourway recolours it. Blend and opacity come from
+       LATTICE_STYLE — the dev-only tuning panel writes it (see the DEV_SKIP
+       block); whatever is set there prints, since this is the export markup. */
+    /* Like decades, a bar has a standing DEFAULT, so it shows the moment the
+       question is reached — not only once the handle is touched. That also
+       gives the entrance a single clean draw to run on (openQuestion draws
+       once on open): a drag re-renders every stop and would otherwise strip
+       .enter, or never even reach a first paint to tag, before it played. */
+    + ((isChosen('sixweek') || (S.reached['sixweek'] && !S.skipped['sixweek'])) ? '<g class="hl" data-q="sixweek" opacity="'+LATTICE_STYLE.opacity+'"'
+        + (LATTICE_STYLE.blend!=='normal' ? ' style="mix-blend-mode:'+LATTICE_STYLE.blend+'"' : '')
+        + '>'+latticeLayer(B,C)+'</g>' : '')
+    /* the word pair — the sheet's only typography. ABOVE the sixweek lattice by
+       Karin's decision (16 Aug): the letters print over the lattice weather;
+       only the rings, snake and node still print over the letters. */
+    + (isChosen('saying') ? '<g class="hl" data-q="saying">'+sayingLayer(B,C)+'</g>' : '')
     /* the ring stack hangs on the top-right corner, above the month silhouette
        but below the node and the beams, which stay centred and print over it */
     + (isChosen('vacations') ? '<g class="hl" data-q="vacations" opacity="0.85">'+ringsMarkup(B,C)+'</g>' : '')
@@ -3333,17 +3786,9 @@ function buildSVG(F){
   /* THE COLOURWAY recolours the whole sheet: the last question maps the poster's
      two ink roles to the chosen pair. red-role = every #F5242B, blue-role = every
      #0C55FF and the month/grid #004CFF. Only once a colourway is picked, so the
-     default red+blue sheet is untouched until then. */
-  if(isChosen('colorway')){
-    const ink=posterInk();
-    /* ONE simultaneous pass, not three sequential ones: when the swap puts the blue
-       hex (#0C55FF) into the red role, a sequential replace would turn the red areas
-       blue and then a later step would repaint every blue — including those — so the
-       whole sheet collapsed to one colour (the green-blue / red-blue bug). */
-    const map={'#F5242B':ink.red, '#0C55FF':ink.blue, '#004CFF':ink.blue};
-    return svg.replace(/#F5242B|#0C55FF|#004CFF/g, m=>map[m]);
-  }
-  return svg;
+     default red+blue sheet is untouched until then. The swap itself lives in
+     inkedMarkup, shared with the live glide emitters — see the note there. */
+  return inkedMarkup(svg);
 }
 
 /* =====================================================================
@@ -3429,8 +3874,33 @@ function dotXY(d){
 /* The sheet no longer sits on the origin: it is slid POSTER_SHIFT_CELLS to the
    right, into the open space, which widens the clear band on the left for the
    questions. QUESTION_LEFT_CELLS then insets that band from the screen's edge. */
-const POSTER_SHIFT_CELLS=5;   // right of centre: questions on the left, hover cards on the right
-const QUESTION_LEFT_CELLS=2;  // inset from the screen edge; 2 keeps the snake its 2nd column on fullscreen
+/* THE BOARD'S WIDTH BUDGET, and it is exactly spent — every number below was
+   solved against the others rather than chosen, so moving one alone breaks a
+   neighbour. Across the 40 cells a 1512px window gives:
+
+     3   left margin          SIDE_CELLS
+     11  question figure      SNAKE.spanW (marker + 2 to the panel + a 9 panel)
+     1   the snake's swing    the second column its zigzag needs
+     16  the poster union     the widest format's 14, plus a cell of air a side
+     6   the hover note       NOTE_CELLS
+     3   right margin         SIDE_CELLS
+     --
+     40
+
+   Karin's rule of 16 Aug is the two 3s: the questions sit three cells in from
+   the left edge and the note's outer edge three cells in from the right, so the
+   board reads even about the poster. Everything else fell out of making that
+   true — the poster came left two cells, the figure's reserve dropped to what
+   it actually uses (every panel is 9 wide, see PANEL_W; it had been reserving
+   10 plus a spare cell), and the note gave up two cells of width, which is the
+   one place the budget could still find them. */
+const SIDE_CELLS=3;           // the margin, both sides — to the PANEL, not the marker
+const NOTE_CELLS=6;           // the hover note's width
+const POSTER_SHIFT_CELLS=3;   // right of centre: questions on the left, notes on the right
+/* QUESTION_LEFT_CELLS is the PANEL's inset now, matching the note's SIDE_CELLS
+   on the opposite edge — see the comment on `left` in snakeBand for how the
+   marker's column is derived from it. */
+const QUESTION_LEFT_CELLS=SIDE_CELLS;
 function sheetCols(F){
   F=F||FMT();
   return {left:-Math.round(F.cols/2)+POSTER_SHIFT_CELLS,
@@ -3483,11 +3953,10 @@ const allDone=()=>ASKED.every(q=>isDone(q.id));
    Anything further along stays locked; anything already answered can always be
    revisited.
 
-   Nothing is open at all until the whole landing sequence — profile, then
-   the three base questions — is done. This is the ONE guard that gates the
-   whole board, and everything downstream (canOpen, the pulse, the "Start
-   here" cue) reads through it rather than each re-checking S.baseDone on
-   its own. */
+   Nothing is open at all until the opening screen is done. This is the ONE
+   guard that gates the whole board, and everything downstream (canOpen, the
+   pulse, the "Start here" cue) reads through it rather than each re-checking
+   S.baseDone on its own. */
 function availableQs(){
   if(!S.baseDone) return [];
   const remaining=ASKED.filter(q=>!isDone(q.id));
@@ -3848,26 +4317,38 @@ const SNAKE={
   total:{dx:1, dy:0, w:1, h:1},
   /* Six by SIX, not the mock's six by four. The figure was 5.6% of a 1920x1080
      screen and read as an afterthought beside a poster taking 24%. Width could
-     not grow — the clear band beside the poster is 13 cells and the figure is
-     11, and those two spare cells are the snake's whole amplitude — but there
-     are 24 rows and the figure used 6, so downward was free. Everything inside
-     the panel is expressed as a fraction of PANEL_H below, so the interior
-     scaled with it instead of being retuned by hand. */
+     not grow — the clear band beside the poster only just fits the figure once
+     — so downward was free instead, and there are 24 rows against the figure's
+     6. Everything inside the panel is expressed as a fraction of PANEL_H below,
+     so the interior scaled with it instead of being retuned by hand.
+     (The two-column zigzag this used to describe is gone — see snakeCell.) */
   /* panel.h is NOT here: every question sizes its own panel (see panelSize),
      because a fixed height left the short questions with a field of white
      between the words and the answer. Width stays 6 — that is what the clear
      band beside the poster affords. */
-  /* w here is the WIDEST a panel may be — the band is sized for it, so spanW and
-     the snake's lanes are computed from this one number whatever an individual
-     question asks for. Per-question widths live in PANEL_W. */
-  panel:{dx:2, dy:1, w:10},
-  /* dx follows the panel's width and dy its height, so Save keeps hanging off
+  /* dx:1, not 2. ONE DIAGONAL CELL FROM THE MARKER — Karin's rule, 16 Aug: the
+     panel's top-left touches the marker's cell corner-to-corner, the same way
+     total touches the marker's own corner. It lands in the SAME column as
+     total (dx 1) and one row further down, so it also still hangs off total's
+     corner, not just the marker's — both corner rules hold at once. w here is
+     the WIDEST a panel may be — the band is sized for it, so spanW is computed
+     from this one number whatever an individual question asks for; per-question
+     widths live in PANEL_W. */
+  panel:{dx:1, dy:1, w:10},
+  /* dx follows the panel's width and dy its height, so Next keeps hanging off
      the panel's lower-right corner whatever size the panel is */
   save: {w:2, h:1},
-  /* the figure's worst-case extent, for fitting. spanW is the panel's own reach
-     (dx 2 + w 10 = 12), no spare buffer — the extra two cells it used to carry ate
-     the snake's second column once the poster moved right, killing the zigzag. */
-  spanW:12, spanH:10,
+  /* the figure's worst-case extent, for fitting. spanW is the FULL reach to
+     Next's far edge, not just the panel's: dx 1 + the panel's real width (9,
+     every panel — see PANEL_W) + Next's own width (2) = 12. Forgetting Next's
+     reach here (an 11 tried on 16 Aug) is what broke every single question:
+     snakeFits checks EACH part clears the poster, Next's box was the one that
+     didn't, so every question fell to the anchored fallback and the corner
+     rule broke everywhere at once — not a cosmetic miss, a functional one.
+     spanH is the figure's TRUE reach below its marker: the panel hangs one row
+     down and is PANEL_H (10) tall, and Next takes one more row off its foot —
+     1 + 10 + 1 = 12. */
+  spanW:12, spanH:12,
   /* Zero. This was a cell of clearance I had added between the figure and the
      poster's keep-out box; spending it on the panel is what the extra width
      costs, and Save may sit flush against that edge. The keep-out box already
@@ -3877,7 +4358,10 @@ const SNAKE={
   /* Cells of drop from the top of the viewport before the first marker. The
      snake used to start hard against the top edge; three cells down gives it
      somewhere to begin from rather than arriving already cut off. Clamped in
-     snakeBand so it can never push the last question's Save off the bottom. */
+     snakeBand so it can never push the last question's Next off the bottom.
+     Karin's "two cells lower" (16 Aug) is NOT a change to this number: three
+     cells is what it always asked for, and the clamp was quietly eating two of
+     them by reserving a worst-case panel under every question. See snakeReach. */
   top:3
 };
 
@@ -3895,45 +4379,51 @@ function snakeBand(){
      step from column 1 to column 2 implies. Bounding the marker instead of the
      figure was a bug: it let the walk wander to the union's edge and then had
      nowhere legal to open, and the fallback put the panel on the poster. */
-  const iMax=uL-SNAKE.spanW-1;
+  /* spanW is now the figure's TRUE reach (dx 2 + a 9-cell panel), so it is spent
+     exactly — the spare cell this used to subtract was the snake's second
+     column, and without it the run drops to a single file. */
+  const iMax=uL-SNAKE.spanW;
   /* The drop, but never further than the last question can afford: the figure
      reaches spanH rows below its own marker, and the final marker is (N-1) rows
      below the first, so the whole run has to end above the viewport's edge. */
-  /* One row per question, plus the figure reaching below the last marker. */
-  const need=Math.max(0, ASKED.length-1) + SNAKE.spanH;
+  /* The deepest question's foot, measured rather than assumed — see snakeReach. */
+  const need=snakeReach();
   const jMin=Math.min(-halfH+SNAKE.top, halfH-need);
-  const left=-halfW+QUESTION_LEFT_CELLS;              // 3-cell inset from the screen edge
+  /* THE MARKER'S COLUMN IS FIXED — no more two-lane zigzag. A shifting marker
+     column shifted the PANEL's column with it (panel.c = marker.c+panel.dx),
+     so "3 cells from the edge" was only ever true on half the questions; Karin
+     asked for it to hold on ALL of them, every time, matching the hover note's
+     fixed inset on the other side. QUESTION_LEFT_CELLS is the PANEL's own inset
+     now, so the marker sits panel.dx cells further in, at
+     QUESTION_LEFT_CELLS-SNAKE.panel.dx from the edge — one constant column,
+     not a range, so iMin and iMax are the same cell. Still clamped against the
+     poster (Math.min with the reach-based bound) for the rare narrow window
+     where even this one column would collide. */
+  const left=Math.min(-halfW+QUESTION_LEFT_CELLS-SNAKE.panel.dx, iMax);
   return {
-    iMin:left, iMax:Math.max(left, Math.min(iMax, uL-SNAKE.spanW-1)),
+    iMin:left, iMax:left,
     jMin, jMax:halfH-1,
     uL, halfW, halfH, cell
   };
 }
 
-/* LENGTHWISE — the snake descends. One row down per question, the column
-   turning back and forth across the few it has, so every step is diagonal and
-   consecutive markers meet at a corner.
-
-   It ran horizontally for one pass and the arithmetic would not close: nine
-   markers across plus an eleven-column figure needs twenty columns, and the
-   clear band beside the poster is thirteen. Running lengthwise spends the band
-   on the FIGURE and the screen's height on the SEQUENCE, which is the way round
-   that fits — the figure gets all thirteen columns at every question, so the
-   panel can always hang off its own marker's corner.
-
-   A triangle wave, not a sawtooth: reflecting by restarting on the edge column
-   would put two questions in the same column, and a step that does not change
-   column is a vertical step — the one thing this composition cannot take, since
-   every part of it hangs off a CORNER. The wave turns without repeating:
-   ...-22,-21,-20,-21,-22,-21... */
+/* LENGTHWISE — the snake descends. One row down per question, straight down a
+   single fixed column (see the note on `left` in snakeBand) rather than
+   turning back and forth across a few — the run used to zigzag between two
+   columns, but that dragged the PANEL's left edge with it (panel.c is the
+   marker's column plus SNAKE.panel.dx), breaking the fixed 3-cell margin Karin
+   wants on every question, not just every other one. Running lengthwise still
+   spends the band on the FIGURE and the screen's height on the SEQUENCE, which
+   is the way round that fits — the figure gets the same fixed columns at every
+   question, so the panel always hangs off its own marker's corner. */
 function snakeCell(n){
   const B=snakeBand();
-  /* TWO columns, alternating — the reference, not a wave across however many the
-     band happens to afford. Odd questions on the left column, even on the right,
-     one row down each time, so every step is a diagonal of exactly one cell.
-     The band is sized so both columns can host the figure (see snakeBand). */
-  const lanes=Math.max(1, B.iMax-B.iMin+1);
-  return {i:B.iMin+(lanes>1 ? n%2 : 0), j:B.jMin+n};
+  /* ONE column now, not two alternating — see the note on `left` in snakeBand.
+     Every marker sits in the same column, one row further down than the last;
+     the panel it opens still reads as a diagonal step off that column because
+     of SNAKE.panel's own (dx:1, dy:1) offset, but the column itself no longer
+     drifts the panel's left edge off Karin's fixed 3-cell margin. */
+  return {i:B.iMin, j:B.jMin+n};
 }
 
 /* The four rects of the figure, given a marker cell and which way it opens.
@@ -3983,7 +4473,16 @@ const ringCircleD=W=>((W-2*Q_INSET)-(RING_COLS-1)*CIRCLE_GAP)/RING_COLS;
 const CIRCLE_D_MAX=1.6;                      // cap the circle diameter so few-option rows keep a normal gap
 /* a per-question cap, checked before the shared one — febdays lost its "Happy
    birthday!" line, so its circles can grow back a touch into the freed room */
-const CIRCLE_D_MAX_ID={febdays:1.82};
+/* saying is UNCAPPED on purpose: at four options the width-fit diameter is
+   exactly ringCircleD (same 4-column arithmetic), so its circles come out the
+   size of the month grid's and the density card's — one family of mark, per
+   Karin's 16 Aug direction. */
+/* vacations matches febdays' cap (Karin, 16 Aug): now that the '4' card is gone
+   (see the vacations question def), it is ALSO a four-option row at the same
+   panel width — the same width-fit diameter febdays computes, 1.9695 cells,
+   clipped by febdays' 1.82 rather than the shared 1.6. Without this override
+   the two four-option rows would size differently for no visible reason. */
+const CIRCLE_D_MAX_ID={febdays:1.82, vacations:1.82, saying:Infinity};
 const circleCap=q=> (q && CIRCLE_D_MAX_ID[q.id]!==undefined) ? CIRCLE_D_MAX_ID[q.id] : CIRCLE_D_MAX;
 const COLORWAY_D_MAX=2.3;                     // cap the colourway swatch so its two rows fit the 7-cell panel
 /* The small line under the question. Quieter than the question in size and in
@@ -4034,9 +4533,75 @@ function textBottomCells(q){
   const ps=panelSize(q);
   return Q_INSET + ps.titleLines*Q_LH + (ps.hintLines ? Q_HGAP + ps.hintLines*Q_HLH : 0);
 }
-/* The gap between the words and the control, per question, from Figma (px/36.68). */
-const CTRL_GAP={ month:18/36.68, alarms:5/36.68, vacations:23/36.68, febdays:15/36.68 };
+/* The gap between the words and the control, per question, from Figma (px/36.68).
+   shape and density keep the landing screens' own measure — 26px on that
+   drawing's 45px cell (node 2879:6431) — since their controls came over intact.
+   month tightened from 18 to 6 (Karin, 16 Aug): the ring grid's raw content
+   measured 10.25 cells (see panelHeightCells) — just past the whole-cell
+   ceiling, rounding the panel up to 11 and hanging Next a whole cell lower
+   than it needed to. Trimming this one gap brings the raw height to ~9.93,
+   which ceils to 10 instead — the panel comes back to a square-ish 9x10, the
+   grid sits a bit higher under the hint, and Next follows it up by exactly
+   one cell (its top is panel.top + panel.height — see renderSnake). */
+const CTRL_GAP={ month:6/36.68, alarms:5/36.68, vacations:23/36.68, febdays:15/36.68,
+                 shape:26/45, density:26/45 };
 const ctrlGap=id=>CTRL_GAP[id]!==undefined ? CTRL_GAP[id] : Q_GAP;
+
+/* THE PANEL'S INSIDES, as markup. Extracted so the run's reach can be MEASURED
+   from exactly what renderSnake will draw — two copies of this would drift and
+   the drift would show up as a run that sits a row off. */
+function panelInner(q,c,PH,PW){
+  return '<div class="qflow" style="padding:'+(Q_INSET*c).toFixed(1)+'px 0">'
+    + '<h2 style="margin:0 '+(Q_INSET*c).toFixed(1)+'px;'
+    +          'font-size:'+(Q_FS*c).toFixed(1)+'px;line-height:'+(Q_LH*c).toFixed(1)+'px">'
+    + esc(val(q.title,derive())) + '</h2>'
+    + (val(q.hint,derive())
+        ? '<p class="qhint" style="margin:'+(Q_HGAP*c).toFixed(1)+'px '+(Q_INSET*c).toFixed(1)+'px 0;'
+          + 'font-size:'+(Q_HFS*c).toFixed(1)+'px;line-height:'+(Q_HLH*c).toFixed(1)+'px">'
+          + esc(val(q.hint,derive())) + '</p>'
+        : '')
+    + panelControl(q,c,PH,PW)
+    + '</div>';
+}
+
+/* HOW FAR THE RUN REALLY REACHES, in rows below the FIRST marker.
+
+   Panels hug their content and are then snapped up to whole cells, so the old
+   reserve — a worst-case SNAKE.spanH under the LAST question — was wrong twice
+   over: too generous for the short questions and, since the tallest panel is
+   eleven cells rather than the declared ten, not generous enough for the month.
+   Being too generous is what showed: the band could not honour SNAKE.top's
+   three-cell drop, so the whole run rode up against the top edge and started
+   two cells higher than the composition asks for.
+
+   Measured instead. Each question's foot is its own marker's row, plus the
+   panel hanging one row below it, plus Next one row below that; the run's reach
+   is the deepest of those. Heights come off a detached probe built from
+   panelInner, cached per question per cell size — a resize re-measures, a
+   repaint does not. */
+let panelHCache={key:null, rows:0, h:{}};
+function panelHeightCells(q,c){
+  if(panelHCache.h[q.id]!=null) return panelHCache.h[q.id];
+  const PS=panelSize(q);
+  const probe=document.createElement('div');
+  probe.style.cssText='position:absolute;visibility:hidden;left:-9999px;top:0';
+  probe.innerHTML='<div class="qpanel" style="width:'+(PS.w*c).toFixed(1)+'px;height:auto">'
+                + panelInner(q,c,PS.h,PS.w) + '</div>';
+  document.body.appendChild(probe);
+  const h=Math.max(1, Math.ceil(probe.firstChild.offsetHeight/c - 0.01));
+  probe.remove();
+  panelHCache.h[q.id]=h;
+  return h;
+}
+function snakeReach(){
+  const c=cellSize(), key=c.toFixed(2)+'|'+ASKED.map(q=>q.id).join(',');
+  if(panelHCache.key===key) return panelHCache.rows;
+  panelHCache={key, rows:0, h:{}};
+  let deepest=SNAKE.spanH;
+  ASKED.forEach((q,n)=>{ deepest=Math.max(deepest, n + 1 + panelHeightCells(q,c) + 1); });
+  panelHCache.rows=deepest;
+  return deepest;
+}
 
 function snakeParts(i,j,sx,sy){
   const PH=snakeParts.h||6, PW=snakeParts.w||SNAKE.panel.w;
@@ -4074,9 +4639,14 @@ function snakeFits(P,B){
    fits. Down-right is the mock and is always tried first. */
 function snakeFigure(n){
   const B=snakeBand(), m=snakeCell(n);
-  /* the panel's height is this question's, and snakeParts needs it before it
-     can place anything below the panel */
-  const PS = ASKED[n] ? panelSize(ASKED[n]) : {w:SNAKE.panel.w, h:6};
+  /* the panel's REAL height, not panelSize's nominal PANEL_H(10) — the same
+     fix snakeReach needed. Using the nominal here starved the last questions:
+     a 7-cell panel (saying, colorway) was checked as if it were 10, pushed
+     Next three rows past B.jMax that were never actually needed, and both
+     fell to the anchored fallback despite fitting for real. snakeParts still
+     wants a WIDTH (panelSize's w is fine, unaffected by hugging). */
+  const q=ASKED[n];
+  const PS = q ? {w:panelSize(q).w, h:panelHeightCells(q,cellSize())} : {w:SNAKE.panel.w, h:6};
   snakeParts.h=PS.h; snakeParts.w=PS.w;
   for(const [sx,sy] of [[1,1],[1,-1],[-1,1],[-1,-1]]){
     const P=snakeParts(m.i,m.j,sx,sy);
@@ -4258,7 +4828,12 @@ function dialMarkup(q,c,PH,W){
   const r=rC*c, lr=labelR*c;
   const pt=(rad,deg)=>{const a=(deg-90)*Math.PI/180;
     return [cx+rad*Math.cos(a), cy+rad*Math.sin(a)];};
-  let s='<svg class="dial" viewBox="0 0 '+(W*c).toFixed(1)+' '+(PH*c).toFixed(1)+'"'
+  /* a flow child, cropped to the wheel's TOP HALF: the viewBox runs from the
+     twelve-o'clock value down to the horizontal diameter (cy), so the lower
+     half is clipped by the svg's own viewport — no panel foot needed for it */
+  const vbY=(textB+DIAL_GAP)*c, vbH=cy-vbY;
+  let s='<svg class="dial" viewBox="0 '+vbY.toFixed(1)+' '+(W*c).toFixed(1)+' '+vbH.toFixed(1)+'"'
+      + ' style="margin-top:'+(DIAL_GAP*c).toFixed(1)+'px"'
       + ' tabindex="0" role="slider" aria-label="'+esc(q.title)+'"'
       + ' aria-valuemin="'+R.min+'" aria-valuemax="'+R.max+'" aria-valuenow="'+R.cur+'"><g class="cbody">';
   /* the FULL circle outline — the panel clips its lower part, exactly as the mock */
@@ -4485,7 +5060,11 @@ function barMarkup(q,c,PH,W){
   const vlo=Q_INSET*c+vw/2, vhi=(W-Q_INSET)*c-vw/2;
   const vx=Math.max(vlo,Math.min(vhi,x));
   const px=v=>(+v).toFixed(1);
-  let s='<svg class="bar" viewBox="0 0 '+(W*c).toFixed(1)+' '+(PH*c).toFixed(1)+'"'
+  /* a flow child: the viewBox crops from the value's box down to the bar's
+     underside, and the gap to the words is a real flow margin */
+  const vbY=(textBottomCells(q)+ctrlGap(q.id))*c, vbH=y+fat-vbY;
+  let s='<svg class="bar" viewBox="0 '+vbY.toFixed(1)+' '+(W*c).toFixed(1)+' '+vbH.toFixed(1)+'"'
+      + ' style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px"'
       + ' tabindex="0" role="slider" aria-label="'+esc(String(val(q.title,derive())))+'"'
       + ' aria-valuemin="'+R.min+'" aria-valuemax="'+R.max+'" aria-valuenow="'+R.cur+'"'
       + ' aria-valuetext="'+R.cur+' '+esc(unit)+'"><g class="bbody">';
@@ -4504,10 +5083,17 @@ function barMarkup(q,c,PH,W){
      state is a lozenge that has been drawn out of it. */
   s+='<line class="bar-run" x1="'+px(x0)+'" y1="'+px(y)+'" x2="'+px(x)+'" y2="'+px(y)+'"'
     + ' stroke-width="'+th.toFixed(2)+'" stroke-linecap="round"/>';
-  s+='<text class="bar-val" x="'+px(vx)+'" y="'+px(baseY)+'" text-anchor="middle"'
-    + ' font-size="'+valFs.toFixed(1)+'">'+esc(String(R.cur))
-    + (unit ? '<tspan class="bar-unit" dx="0.28em" font-size="'+unitFs.toFixed(1)+'">'+esc(unit)+'</tspan>' : '')
-    + '</text>';
+  /* Named ends instead of a number, when the question carries them (the
+     week/weekend bar): one label hugging each end of the run, and no readout. */
+  if(q.ends){
+    s+='<text class="bar-end" x="'+px(Q_INSET*c)+'" y="'+px(baseY)+'" text-anchor="start" font-size="'+unitFs.toFixed(1)+'">'+esc(q.ends[0])+'</text>';
+    s+='<text class="bar-end" x="'+px((W-Q_INSET)*c)+'" y="'+px(baseY)+'" text-anchor="end" font-size="'+unitFs.toFixed(1)+'">'+esc(q.ends[1])+'</text>';
+  } else {
+    s+='<text class="bar-val" x="'+px(vx)+'" y="'+px(baseY)+'" text-anchor="middle"'
+      + ' font-size="'+valFs.toFixed(1)+'">'+esc(String(R.cur))
+      + (unit ? '<tspan class="bar-unit" dx="0.28em" font-size="'+unitFs.toFixed(1)+'">'+esc(unit)+'</tspan>' : '')
+      + '</text>';
+  }
   s+='</g>';
   return s+'</g></svg>';
 }
@@ -4646,6 +5232,14 @@ function renderSnake(){
      has actually changed. */
   const arriving = renderSnake.last!==q.id;
   renderSnake.last=q.id;
+  /* The density circles' rise plays on ARRIVAL — every time the question comes
+     up, first visit or a return to it — and never on a pick, whose re-render
+     keeps the circles standing. `pending` holds the rise armed across a
+     double render: a revisit repaints twice in one tick (closeCard and the
+     marker handler both render), and the second pass is no longer "arriving" —
+     without it the rise died before it ever reached the screen. It clears in
+     the rAF that actually raises the fills. */
+  densityFillMarkup.rise = arriving || !!densityFillMarkup.pending;
   const A='';
   html+='<div class="qstep now'+A+'" style="'+cssBox(cellBox(F.step))
       + ';font-size:'+(0.33*c).toFixed(1)+'px">'+(cur+1)+'</div>';
@@ -4658,16 +5252,17 @@ function renderSnake(){
      cell and came out too small to read at this size — the first question was
      the tell. Every question is set at this one size; nothing is scaled per
      question except the panel that holds it. */
-  html+='<div class="qpanel'+A+'" style="'+cssBox(pb)+'">'
-      + '<h2 style="margin:'+(Q_INSET*c).toFixed(1)+'px '+(Q_INSET*c).toFixed(1)+'px 0;'
-      +          'font-size:'+(Q_FS*c).toFixed(1)+'px;line-height:'+(Q_LH*c).toFixed(1)+'px">'
-      + esc(val(q.title,derive())) + '</h2>'
-      + (val(q.hint,derive())
-          ? '<p class="qhint" style="margin:'+(Q_HGAP*c).toFixed(1)+'px '+(Q_INSET*c).toFixed(1)+'px 0;'
-            + 'font-size:'+(Q_HFS*c).toFixed(1)+'px;line-height:'+(Q_HLH*c).toFixed(1)+'px">'
-            + esc(val(q.hint,derive())) + '</p>'
-          : '')
-      + panelControl(q,c,PH,F.panel.w)
+  /* EVERY PANEL FLOWS. Title, hint and control sit in ONE .qflow column that
+     owns all the spacing — vertical padding is the hug, the children's margins
+     are the gaps — and the panel's height is auto: it hugs the content instead
+     of holding 10 cells. The padding is vertical ONLY, so an svg control can
+     span the panel's full width and keep its viewBox at 1:1 with the screen;
+     the words carry the side hug as their own horizontal margins. Each control
+     crops its viewBox to just itself, so where it drew inside the old 10-cell
+     card no longer matters — the flow places it under the REAL text. */
+  html+='<div class="qpanel'+A+'" style="left:'+pb.left.toFixed(1)+'px;top:'+pb.top.toFixed(1)+'px;'
+      + 'width:'+pb.w.toFixed(1)+'px;height:auto">'
+      + panelInner(q,c,PH,F.panel.w)
       + '</div>';
 
   /* Shut until a card has been picked. With no standing default there is nothing
@@ -4677,24 +5272,45 @@ function renderSnake(){
   html+='<button type="button" class="qsave'+A+(locked?' locked':'')+'"'
       + (locked?' disabled aria-disabled="true"':'')
       + ' style="'+cssBox(cellBox(F.save))
-      + ';font-size:'+(0.26*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">Save</button>';
+      + ';font-size:'+(0.26*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">Next</button>';
 
   qsys.innerHTML=html;
 
-  /* THE GAP TO THE CONTROL, measured not estimated. The control is drawn a rough
-     text-height below the top (panelSize counts characters, which can misjudge a
-     line and push the control too low). Now the ACTUAL rendered text bottom is
-     measured and the control body shifted so it sits exactly its Figma gap under
-     the hint — which is also what stops the last row falling off the foot. */
+  /* PANELS hug their content, so the box they end up with is whatever the words
+     and the control add up to — which lands its bottom edge in the middle of a
+     cell. THE PANEL IS INTERFACE, so it has to sit on the lattice like every
+     other part of it: measure the hug, round the height UP to whole cells, and
+     ASSIGN it. The slack falls at the panel's foot (the composition inside is
+     tuned separately), and Next then hangs off a corner that is really on a
+     line rather than off an estimate. Karin's rule, 16 Aug.
+     Only the downward-opening figure reseats Next: the mirrored ones seat it a
+     row ABOVE the panel's top, which is already on a line whatever the height. */
   const panelEl=qsys.querySelector('.qpanel');
-  const cbody=panelEl && panelEl.querySelector('svg .cbody');
-  const lastText=panelEl && (panelEl.querySelector('.qhint')||panelEl.querySelector('h2'));
-  if(cbody && lastText){
-    const pr=panelEl.getBoundingClientRect(), tr=lastText.getBoundingClientRect();
-    const actual=tr.bottom-pr.top;
-    const est=textBottomCells(q)*c;
-    const delta=actual-est;
-    if(Math.abs(delta)>0.5) cbody.setAttribute('transform','translate(0 '+delta.toFixed(1)+')');
+  if(panelEl){
+    const hCells=Math.max(1, Math.ceil(panelEl.offsetHeight/c - 0.01));
+    panelEl.style.height=(hCells*c).toFixed(1)+'px';
+    if(F.sy>0){
+      const saveEl=qsys.querySelector('.qsave');
+      if(saveEl) saveEl.style.top=(pb.top + hCells*c).toFixed(1)+'px';
+    }
+  }
+
+  /* THE DENSITY CIRCLES' rise, on arrival only: the markup came out with the
+     fills at 0 (see densityFillMarkup.rise), so one frame later they climb to
+     their levels. A pick's re-render bakes the levels in as inline heights and
+     there is nothing here to do — baking them is what makes the no-animation
+     case airtight: this function forces a layout right above (the Save fit
+     reads offsetHeight), and a height set from 0 AFTER a forced layout is a
+     transition the browser will happily play. */
+  if(densityFillMarkup.rise){
+    const fills=qsys.querySelectorAll('.qfill .circ i');
+    if(fills.length){
+      densityFillMarkup.pending=true;
+      requestAnimationFrame(()=>{
+        densityFillMarkup.pending=false;
+        fills.forEach(i=>{ i.style.height=i.dataset.fill+'%'; });
+      });
+    }
   }
 
   /* THE TRICKLE-DOWN, on timers rather than on a CSS animation.
@@ -4764,14 +5380,15 @@ function monthRingMarkup(q,c,PH,W){
   const d=ringCircleD(W);
   const gridW=cols*d+(cols-1)*gap;
   const Q_SHIFT=(W-gridW)/2;                   // = Q_INSET, so the grid's edge meets the title's
-  /* Bottom-hugged by the SAME Q_INSET as the left and right edges, so the grid's
-     margin is equal on all three sides — the whole field sits in one even hug. */
+  /* a flow child: the viewBox crops to the grid itself, and the gap to the
+     words is a real flow margin — the bottom hug is the .qflow padding now */
   const gridH=rows*d+(rows-1)*gap;
   const top=PH-Q_INSET-gridH;
   const R=d/2, cur=picked(q.id);
   const fs=Q_HFS*c;                            // the name, inside its circle — the hint's size (14px)
   const ringFs=d*0.185*c;                      // the name, running round
-  let g='<svg viewBox="0 0 '+(W*c).toFixed(1)+' '+(PH*c).toFixed(1)+'" class="mring">';
+  let g='<svg viewBox="0 '+(top*c).toFixed(1)+' '+(W*c).toFixed(1)+' '+(gridH*c).toFixed(1)+'"'
+      + ' class="mring" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
   q.options.forEach((m,k)=>{
     const col=k%cols, row=Math.floor(k/cols);
     const cx=(Q_SHIFT+col*(d+gap)+d*0.5)*c, cy=(top+row*(d+gap)+d*0.5)*c, r=R*c;
@@ -4834,7 +5451,7 @@ function monthRingMarkup(q,c,PH,W){
   return g+'</svg>';
 }
 
-/* VACATIONS — a row of touching black circles, one per option (1..5 and a '5+'),
+/* VACATIONS — a row of touching black circles, one per option (1..3 and a '4+'),
    white labels, the chosen one inverts. FIXED size and BOTTOM-hugged by the same
    Q_INSET as the sides, so the margin is equal on left, right and bottom. */
 function circlesMarkup(q,c,PH,W){
@@ -4846,11 +5463,12 @@ function circlesMarkup(q,c,PH,W){
      gap and CENTRE the row (left0 == Q_INSET when the row fills the width uncapped) */
   if(d>circleCap(q)) d=circleCap(q);
   const left0=(W-(cols*d+(cols-1)*gap))/2;
-  /* under the text at the question's own Figma gap; every card is 10 cells now,
-     so the slack collects at the FOOT (per node 2879:6431), not above the row */
+  /* a flow child: the viewBox crops to the row itself, and the gap to the
+     words is a real flow margin — no more estimated text height, no slack */
   const top=textBottomCells(q)+ctrlGap(q.id);
   const r=(d/2)*c, fs=DIAL.labelCells*c;          // labels 14px
-  let s='<svg viewBox="0 0 '+(W*c).toFixed(1)+' '+(PH*c).toFixed(1)+'" class="vcirc">';
+  let s='<svg viewBox="0 '+(top*c).toFixed(1)+' '+(W*c).toFixed(1)+' '+(d*c).toFixed(1)+'"'
+      + ' class="vcirc" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
   opts.forEach((v,i)=>{
     const cx=(left0+i*(d+gap)+d*0.5)*c, cy=(top+d*0.5)*c;
     const on=String(picked(q.id))===String(v);
@@ -4861,6 +5479,74 @@ function circlesMarkup(q,c,PH,W){
   });
   return s+'</svg>';
 }
+/* SHAPE — the question that used to open the landing sequence, its control
+   carried over intact: two ring glyphs drawn to the Figma node (2879:6431)
+   and its 45px cell, the mark sitting apart from the ring or riding on it.
+   Both marks are drawn in the ring's own box and in the frame's own units, so
+   the numbers below are the Figma node's (2875:6324 / 2875:6325) verbatim —
+   the viewBox does the scaling. The apart mark sits outside the box to the
+   right and spills; the riding mark sits ON the ring, up and to the right of
+   centre. HTML rather than panel SVG so the .qduo cell-based CSS keeps ruling
+   its geometry; the buttons register through the same #qsys delegation as
+   every other control. */
+const DUO_RING='cx="50.4669" cy="50.4669" r="49.7169" stroke-width="1.5"';
+const DUO_DOT={apart:'cx="118.877" cy="50.4669"', onring:'cx="78.504" cy="10.0934"'};
+const DUO_POS=['apart','onring'];            // one glyph per side, in the bank's order
+const DUO_BREAK={                             // the landing screens' own line breaks
+  'It moves on without me':'It moves on<br>without me',
+  'It carries me along with it':'It carries me<br>along with it'
+};
+function shapeDuoMarkup(q,c,PH,W){
+  /* THE SAME CIRCLE AS THE FEBDAYS ROW (Q4): width-fit four across under
+     febdays' own cap, so Q1's rings and Q4's circles are one size of the same
+     mark, by decision. The svg frame is a shade wider than the ring it holds
+     (the Figma node's 100.934 against the ring's 99.434), so the frame is
+     scaled up by that ratio and the RING itself comes out at exactly d. */
+  const d=Math.min((W-2*Q_INSET-(RING_COLS-1)*CIRCLE_GAP)/RING_COLS, circleCap(BANK.febdays));
+  const bx=(d*(100.934/99.4338)*c).toFixed(1);
+  /* a FLOW child now — it sits in the .qflow column right after the words, so
+     the only geometry it states is its own gap to them (the Figma ctrlGap) */
+  let s='<div class="qduo" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
+  q.options.forEach(([k,label],i)=>{
+    const pos=DUO_POS[i]||'apart';
+    const on=String(picked(q.id))===String(k);
+    s+='<button type="button" class="'+pos+'" data-val="'+esc(String(k))+'"'
+     + ' aria-pressed="'+on+'" style="width:'+bx+'px">'
+     + '<svg viewBox="0 0 100.934 100.934" aria-hidden="true" style="width:'+bx+'px;height:'+bx+'px">'
+     + '<circle class="ring" '+DUO_RING+'/>'
+     + '<circle class="dot" '+DUO_DOT[pos]+' r="10.0934"/></svg>'
+     + '<b>'+(DUO_BREAK[label]||esc(label))+'</b></button>';
+  });
+  return s+'</div>';
+}
+/* DENSITY — the landing sequence's second question, carried over with it:
+   three circles filling up to their level — a sliver, about half, brimming.
+   The rise plays on ARRIVAL — every time the question comes up, first visit or
+   a return (renderSnake decides and stashes the flag here, the way snakeParts
+   carries its height). On any other render — a pick, a drag's repaint — the
+   level is baked into the markup as an inline height, so there is no
+   0-to-level change for the CSS transition to animate, whatever forced layout
+   passes run in between. */
+const DENSITY_FILL={little:14, enough:52, plenty:100};   // fill level per side, in %
+function densityFillMarkup(q,c,PH,W){
+  const rise=!!densityFillMarkup.rise;
+  /* THE SAME CIRCLE AS THE MONTH GRID, from the same function rather than a
+     size of this control's own — the answer circle is one mark across the
+     piece, and ringCircleD is the one place its diameter is decided. */
+  const d=(ringCircleD(W)*c).toFixed(1);
+  /* a FLOW child, same as the shape control — gap only, no absolute box */
+  let s='<div class="qfill" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
+  q.options.forEach(([k,label])=>{
+    const on=String(picked(q.id))===String(k);
+    const fill=DENSITY_FILL[k]||0;
+    s+='<button type="button" data-val="'+esc(String(k))+'" aria-pressed="'+on+'">'
+     + '<span class="circ" style="width:'+d+'px;height:'+d+'px">'
+     + '<i data-fill="'+fill+'"'+(rise?'':' style="height:'+fill+'%"')+'></i></span>'
+     + '<b>'+esc(label)+'</b></button>';
+  });
+  return s+'</div>';
+}
+
 /* FEBRUARY — four bordered cards (Figma node 2780:4797): 66x106, 12px gap, the
    number (22px) over a small FEB (11px). Left-aligned by the hug. A card question
    (no default): the chosen card inverts, Save stays shut until one is picked. */
@@ -4894,9 +5580,10 @@ function colorwayMarkup(q,c,PH,W){
   if(d>COLORWAY_D_MAX) d=COLORWAY_D_MAX;            // cap so both rows fit the shorter panel
   const gridW=cols*d+(cols-1)*gap, gridH=rows*d+(rows-1)*gap;
   const left0=(W-gridW)/2;                          // centred horizontally
-  const top=textBottomCells(q)+ctrlGap(q.id);       // under the text, slack at the foot
+  const top=textBottomCells(q)+ctrlGap(q.id);       // crop origin — a flow child now
   const r=(d/2)*c, pk=picked(q.id);
-  let s='<svg viewBox="0 0 '+(W*c).toFixed(1)+' '+(PH*c).toFixed(1)+'" class="cway">';
+  let s='<svg viewBox="0 '+(top*c).toFixed(1)+' '+(W*c).toFixed(1)+' '+(gridH*c).toFixed(1)+'"'
+      + ' class="cway" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
   q.options.forEach((opt,i)=>{
     const col=i%cols, row=Math.floor(i/cols);
     const cx=(left0+col*(d+gap)+d*0.5)*c, cy=(top+row*(d+gap)+d*0.5)*c;
@@ -5036,7 +5723,10 @@ function compassMarkup(q,c,PH,W){
      is what should absorb it, and never as type size. */
   const fit=Math.max(6.5, Math.min(COMPASS.ringFsMax*c,
                      circ/(COMPASS.minReps*(maxLen+3)*0.58)));
-  let s='<svg viewBox="0 0 '+(W*c).toFixed(1)+' '+(PH*c).toFixed(1)+'" class="vcirc compass">';
+  /* a flow child: the viewBox crops to the compass block itself */
+  const vbY=(cy-block/2)*c;
+  let s='<svg viewBox="0 '+vbY.toFixed(1)+' '+(W*c).toFixed(1)+' '+(block*c).toFixed(1)+'"'
+      + ' class="vcirc compass" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
   opts.forEach((v,i)=>{
     const p=AT[i], ccx=(cx+p[0]*R)*c, ccy=(cy+p[1]*R)*c;
     const on=String(picked(q.id))===String(v);
@@ -5075,7 +5765,9 @@ function compassMarkup(q,c,PH,W){
   return s+'</svg>';
 }
 function panelControl(q,c,PH,W){
-  if(q.id==='saying')    return compassMarkup(q,c,PH,W);
+  if(q.id==='shape')     return shapeDuoMarkup(q,c,PH,W);
+  if(q.id==='density')   return densityFillMarkup(q,c,PH,W);
+  if(q.id==='saying')    return circlesMarkup(q,c,PH,W);   /* a row of four circles, like febdays — was compassMarkup */
   if(q.id==='vacations') return circlesMarkup(q,c,PH,W);
   if(q.id==='febdays')   return circlesMarkup(q,c,PH,W);
   if(q.id==='colorway')  return colorwayMarkup(q,c,PH,W);
@@ -5093,10 +5785,8 @@ function panelControl(q,c,PH,W){
      proportional position would have floated it away from short ones. */
   const inset=Q_INSET*c;
   const hgt=(rows===2 ? 1.9 : 1.1)*c;
-  const top=PH*c-inset-hgt;
   const fs=(q.type==='choice' ? 0.26 : 0.30)*c;
-  return '<div class="qopts '+q.type+'" style="left:'+inset.toFixed(1)+'px;'
-       + 'top:'+top.toFixed(1)+'px;width:'+(W*c-inset*2).toFixed(1)+'px;'
+  return '<div class="qopts '+q.type+'" style="margin:'+(Q_GAP*c).toFixed(1)+'px '+inset.toFixed(1)+'px 0;'
        + 'height:'+hgt.toFixed(1)+'px;font-size:'+fs.toFixed(1)+'px">'
        + opts.map(([v,label])=>
            '<button type="button" data-val="'+esc(String(v))+'"'
@@ -5393,62 +6083,22 @@ function clearOfSheet(cw,ch,vw,vh,f){
 }
 
 /* =====================================================================
-   THE LANDING SEQUENCE — profile, then the three base questions, before
-   anything else opens and before the poster is shown at all.
+   THE LANDING — the opening screen, before anything else opens and before
+   the poster is shown at all.
 
-   Deliberately NOT part of the card/popup system that every later question
-   uses. A question card floats over the board on purpose — you can see the
-   sheet and the grid through it, because by then you are already inside the
-   piece. This sequence is the opposite: it is what brings you in, and per
-   spec the poster must not be visible — not even a live preview — for any of
-   these four steps. Giving it its own element (#landing) rather than reusing
-   `card` is what makes that possible: the popup card is deliberately
-   translucent-adjacent (drop shadow, floats beside the sheet), and
-   retrofitting "fully opaque, covers the chrome too" onto it would have
-   fought the CSS that makes it work as a question card everywhere else.
+   Deliberately NOT part of the card/popup system that every question uses.
+   A question card floats over the board on purpose — you can see the sheet
+   and the grid through it, because by then you are already inside the piece.
+   This screen is the opposite: it is what brings you in, and per spec the
+   poster must not be visible behind it. Giving it its own element (#landing)
+   rather than reusing `card` is what makes that possible.
 
-   It also means this sequence owes nothing to placeCard/cardBox/pinnedQ at
-   all — those exist to anchor a card to a dot, and this sequence anchors to
-   nothing; it just IS the screen, one step at a time.
-
-   The three base questions write S.baseShape/S.baseDensity/S.baseFrac and
-   NOTHING ELSE reads or writes them once finishBase() runs — no dot, no
-   card, no revisiting. That permanence is the entire point: the rest of the
-   session builds on top of a foundation that cannot shift under it. */
-const LANDING_STEPS=(CONFIG.SHOW_OPENING?['hero']:[]).concat(['shape','density','arrival']);
+   It used to run four steps — the aperture, then three base questions whose
+   answers were permanent. Those questions moved into the bank (shape and
+   density open the board now; the arrival dial was removed outright), so all
+   that is left here is the aperture and its Start. */
+const LANDING_STEPS=CONFIG.SHOW_OPENING?['hero']:[];
 let landingStep=0;
-let qResize=null;                           /* the question panel's resize handler */
-let marksEl=null;                           /* the persistent step-marker layer */
-const BASE_TOTAL=12;                        /* the whole session is twelve questions */
-
-/* the Continue/Back row shared by every step — only the validity check and
-   the label differ, so those are the only things each step passes in */
-function landingNav(cont,{canBack=true,label='Continue',valid=()=>true}={}){
-  const foot=document.createElement('div');
-  foot.className='nav';
-  if(canBack && landingStep>0){
-    const back=document.createElement('button');
-    back.className='skip'; back.type='button'; back.textContent='Back';
-    back.addEventListener('click',()=>{ landingStep--; renderLandingStep(); });
-    foot.appendChild(back);
-    const spacer=document.createElement('span'); spacer.className='spacer';
-    foot.appendChild(spacer);
-  }
-  const btn=document.createElement('button');
-  btn.className='btn'; btn.type='button'; btn.textContent=label;
-  btn.disabled=!valid();
-  btn.addEventListener('click',advanceLanding);
-  foot.appendChild(btn);
-  landingBody.appendChild(foot);
-  return btn;
-}
-function landingHead(kicker){
-  const p=document.createElement('p');
-  p.className='eyebrow';
-  p.innerHTML='<span>'+kicker+'</span><span class="eyebrow-right">'
-    + (landingStep+1)+' / '+LANDING_STEPS.length+'</span>';
-  landingBody.appendChild(p);
-}
 
 /* ---- APERTURE: the opening screen -----------------------------------------
    Step one, and the only step that owns the whole viewport rather than the
@@ -5495,10 +6145,9 @@ function teardownHero(){
   landing.classList.remove('hero');
 }
 
-/* Straight to the board, skipping the three base questions. The base answers
-   take the values they already default to (square / enough / on time, from
-   PROFILE_DEFAULTS), so the poster has a foundation to stand on — it is the
-   ASKING that is skipped, not the answering.
+/* Straight to the board, skipping the opening screen. Nothing is answered on
+   the way past any more — shape and density are board questions now, so the
+   board opens on question one either way; this just spares the aperture.
 
    Two ways in and one implementation: the link on the opening screen, and ?skip
    on the URL. Neither may drift from the other. */
@@ -5565,7 +6214,7 @@ function buildHeroLogo(){
    measure() does). Re-run on resize and once after first paint so a viewport
    that was not yet measured — or one that changes — never leaves the cluster
    mis-sized or off the lattice. */
-function layoutHeroLogo(box,tiles,start,jump){
+function layoutHeroLogo(box,tiles,start){
   const cell=cellSize();
   if(!cell||!isFinite(cell)) return;
   const cells=Math.max(1,Math.min(HERO_TILE_CELLS,Math.floor(0.92*window.innerWidth/(5*cell))));
@@ -5587,7 +6236,6 @@ function layoutHeroLogo(box,tiles,start,jump){
   start.style.left=(2*tile)+'px'; start.style.top=(2*tile)+'px';
   start.style.width=(3*cell)+'px'; start.style.height=cell+'px';
   start.style.fontSize=(Math.round(cell*0.42)-2)+'px';
-  jump.style.left=left+'px'; jump.style.top=(top+boxH+cell*1.4)+'px'; jump.style.width=boxW+'px';
 }
 
 function renderLandingHero(){
@@ -5595,19 +6243,15 @@ function renderLandingHero(){
   const {box,tiles,start}=buildHeroLogo();
   plate.appendChild(box);
 
-  /* The way straight through, in the quiet .skip voice so it never competes
-     with START for the eye — set below the cluster, on the same column. */
-  const jump=document.createElement('button');
-  jump.className='skip'; jump.type='button'; jump.textContent='Skip to the poster';
-  jump.setAttribute('aria-label','Skip the opening questions and go straight to the poster');
-  jump.addEventListener('click',skipOpening);
-  plate.appendChild(jump);
-
+  /* The "Skip to the poster" link that used to hang below the cluster is gone,
+     by decision: with the base questions on the board it skipped nothing but
+     the mark itself, and START already does that job. ?skip on the URL stays
+     as the development shortcut (see skipOpening). */
   landingBody.appendChild(plate);
 
   /* place it now, again after the first paint (the viewport may not be measured
      yet), and on every resize; teardownHero drops the listener */
-  const layout=()=>layoutHeroLogo(box,tiles,start,jump);
+  const layout=()=>layoutHeroLogo(box,tiles,start);
   layout();
   requestAnimationFrame(layout);
   window.addEventListener('resize',layout);
@@ -5766,9 +6410,9 @@ function heroField(cv,frameOf){
     ctx.clearRect(0,0,W,H);
     ctx.drawImage(bg,0,0,W,H);
     /* foc: 0 = full twelve-ray star; 1 = concentrated onto the hovered cell.
-       Everything the star draws fades and pulls toward the centre as foc rises,
-       so the rays read as gathering into the letter and vanishing, leaving only
-       the cell's four DOM corner marks (which sit in front of the tile). */
+       The star never fades: four arms become the cell's four corner squares
+       and the rest collapse into the centre — see the ray loop below. Only the
+       BLOOM dims out, so the grid glow does not sit on the hovered letter. */
     const foc=focusAmt;
 
     const R=R_STEPS*unit;
@@ -5791,48 +6435,76 @@ function heroField(cv,frameOf){
       }
     }
 
-    /* Twelve rays at 30°. As foc rises each endpoint is drawn back toward the
-       centre (retract) and the whole star fades (globalAlpha), so it gathers
-       into the hovered letter rather than snapping off. */
-    /* the four corners the rays gather onto while focused, in canvas coords */
+    /* Twelve rays at 30°. THE STAR DOES NOT FADE when it concentrates — it is
+       one unit throughout. Four of its arms, one per corner of the hovered
+       cell (each corner claims its NEAREST arm, and an arm can serve only one
+       corner), sweep out and BECOME the cell's four corner squares: the tip
+       travels to the corner while the line's centre end chases it, so the arm
+       shortens into its square instead of fading, and the square eases to the
+       .kmark size so what lands IS the corner mark. The other eight arms
+       collapse along themselves into the centre and end up under the centre
+       square. */
+    /* the four corners of the hovered cell, in canvas coords */
     let corners=null;
     if(focusRect){
       const fl=focusRect.left-rect.left, ft=focusRect.top-rect.top,
             fr=focusRect.right-rect.left, fb=focusRect.bottom-rect.top;
       corners=[[fl,ft],[fr,ft],[fl,fb],[fr,fb]];
     }
-    ctx.save();
-    ctx.globalAlpha=1-foc;
-    ctx.strokeStyle=RAY; ctx.lineWidth=1; ctx.beginPath();
-    const ends=[];
+    /* every arm's nominal tip first — the corners need them all to choose from */
+    const tips=[];
     for(let k=0;k<RAYS;k++){
       const a=k*(Math.PI*2/RAYS)-Math.PI/2;
       const cc=Math.round((fx+Math.cos(a)*RAY_STEPS*unit-sox)/unit);
       const rr=Math.round((fy+Math.sin(a)*RAY_STEPS*unit-soy)/unit);
-      const nx=sox+cc*unit, ny=soy+rr*unit;
-      /* each ray sweeps from its star tip to the nearest corner of the hovered
-         cell (or, unfocused, back to the centre) as foc rises */
-      let tx=fx, ty=fy;
-      if(corners){
-        let best=Infinity;
-        for(const [cx,cy] of corners){ const d=(cx-nx)*(cx-nx)+(cy-ny)*(cy-ny); if(d<best){ best=d; tx=cx; ty=cy; } }
+      tips.push([sox+cc*unit, soy+rr*unit]);
+    }
+    const armCorner=new Array(RAYS).fill(null);
+    if(corners){
+      const taken=new Set();
+      for(const [cx,cy] of corners){
+        let best=Infinity, bk=-1;
+        for(let k=0;k<RAYS;k++){
+          if(taken.has(k)) continue;
+          const d=(cx-tips[k][0])*(cx-tips[k][0])+(cy-tips[k][1])*(cy-tips[k][1]);
+          if(d<best){ best=d; bk=k; }
+        }
+        if(bk>=0){ taken.add(bk); armCorner[bk]=[cx,cy]; }
       }
-      const ex=nx+(tx-nx)*foc, ey=ny+(ty-ny)*foc;
-      ends.push([ex,ey]);
-      ctx.moveTo(fx,fy); ctx.lineTo(ex,ey);
+    }
+    ctx.strokeStyle=RAY; ctx.lineWidth=1; ctx.beginPath();
+    const ends=[];
+    for(let k=0;k<RAYS;k++){
+      const [nx,ny]=tips[k], tgt=armCorner[k];
+      let ex,ey;
+      if(tgt){
+        /* a keeper: tip to the corner, centre end chasing it */
+        ex=nx+(tgt[0]-nx)*foc; ey=ny+(tgt[1]-ny)*foc;
+        ctx.moveTo(fx+(ex-fx)*foc, fy+(ey-fy)*foc); ctx.lineTo(ex,ey);
+      }else{
+        /* collapsed: the tip retracts along its own arm into the centre */
+        ex=nx+(fx-nx)*foc; ey=ny+(fy-ny)*foc;
+        ctx.moveTo(fx,fy); ctx.lineTo(ex,ey);
+      }
+      ends.push([ex,ey,!!tgt]);
     }
     ctx.stroke();
 
     /* the hour marks sit on top of their rays, so the line reads as arriving at
-       the square rather than crossing it */
+       the square rather than crossing it. A keeper's square eases from the
+       star's own size to the DOM corner mark's (cell*.17 — see .kmark), so the
+       landing is exact. */
     ctx.fillStyle=cssVar('--fg','#141414');
     const hm=Math.max(4,Math.round(unit*.17));
-    for(const [x,y] of ends) ctx.fillRect(Math.round(x-hm/2),Math.round(y-hm/2),hm,hm);
+    const km=Math.max(3,Math.round(cell*.17));
+    for(const [x,y,keep] of ends){
+      const s=keep ? hm+(km-hm)*foc : hm;
+      ctx.fillRect(Math.round(x-s/2),Math.round(y-s/2),Math.round(s),Math.round(s));
+    }
 
     /* the centre: the only mark not on the lattice, because it is you */
     const fm=Math.max(6,Math.round(unit*.26));
     ctx.fillRect(Math.round(fx-fm/2),Math.round(fy-fm/2),fm,fm);
-    ctx.restore();
 
     /* No hole is cut any more. The grid runs unbroken under the KAIRO mark and
        the question panels — the letters sit ON the lattice, and hovering one
@@ -5911,287 +6583,27 @@ function heroField(cv,frameOf){
   };
 }
 
-/* The number in the corner: this base question's place in the whole run. The
-   three base questions are 1..3; the bank picks up at 4 and runs to the total. */
-function landingMarker(){
-  const n=landingStep - (CONFIG.SHOW_OPENING?1:0) + 1;
-  const total=3 + CONFIG.QUESTIONS_PER_SESSION;
-  const m=document.createElement('div'); m.className='qnum';
-  m.innerHTML='<b>'+n+'</b><s>/'+total+'</s>';
-  landingBody.appendChild(m);
-}
-/* Snap the question panel to the grid: eight cells wide, its height rounded up to
-   whole cells, and its top-left placed on the nearest junction (the same phase
-   the dot field uses). That puts the panel, the number cells off its top-left
-   and the NEXT cell off its bottom-right all on the lattice, the way the
-   interface's own questions sit on it. Re-run on resize and after fonts load. */
-/* The three questions step diagonally down-right, each marker one 3-cell stride
-   from the last, its panel hanging two cells right and one down of the marker —
-   like cards pinned to successive dots in the central system. The anchor is
-   stable (a nominal panel height, not the current one) so the markers never
-   jump between steps, and it is snapped so everything lands on the grid. */
-/* The one question card every panel gets — 9 across, 10 down (PANEL_H), same as
-   the interface's own questions. Keep the width in step with the `width` on
-   #landing:not(.hero) #landingBody. */
-const BASE_PANEL_W=9, BASE_PANEL_H=10;
-const BASE_STEP=1, BASE_NOMH=BASE_PANEL_H;   /* one cell per step: the markers touch corner-to-corner in a tight diagonal staircase */
-function baseAnchor(cell){
-  const W=window.innerWidth, H=window.innerHeight;
-  const sox=((W/2)%cell+cell)%cell, soy=((H/2)%cell+cell)%cell;
-  const left=sox+Math.round((W/2-(2+BASE_STEP+BASE_PANEL_W/2)*cell-sox)/cell)*cell;
-  const top =soy+Math.round((H/2-(1+BASE_STEP+BASE_NOMH/2)*cell-soy)/cell)*cell;
-  return {left, top};
-}
-function ensureMarks(){
-  if(marksEl) return marksEl;
-  marksEl=document.createElement('div'); marksEl.id='landingMarks';
-  marksEl.setAttribute('aria-hidden','true');
-  landing.insertBefore(marksEl, landingBody);
-  return marksEl;
-}
-function clearMarks(){ if(marksEl){ marksEl.remove(); marksEl=null; } }
-function renderMarks(idx,cell){
-  const el=ensureMarks(); el.innerHTML='';
-  const {left,top}=baseAnchor(cell);
-  for(let i=0;i<=idx;i++){
-    const m=document.createElement('div');
-    m.className='qmark '+(i<idx?'past':'now');
-    m.style.left=(left+i*BASE_STEP*cell)+'px';
-    m.style.top =(top +i*BASE_STEP*cell)+'px';
-    m.textContent=String(i+1);
-    if(i===idx){ const t=document.createElement('span'); t.className='tot'; t.textContent='/'+BASE_TOTAL; m.appendChild(t); }
-    el.appendChild(m);
-  }
-}
-function layoutQuestionPanel(){
-  if(LANDING_STEPS[landingStep]==='hero'){ clearMarks(); return; }
-  const cell=cellSize();
-  if(!cell||!isFinite(cell)) return;
-  /* Write --cell BEFORE measuring. This runs straight off the resize event,
-     but relayout() — the only other writer — is debounced 140ms behind it, so
-     without this the children are still styled by the OLD cell while the panel
-     is sized to the new one, and it comes out a whole cell short. */
-  syncCell();
-  const idx=landingStep-(CONFIG.SHOW_OPENING?1:0);
-  const {left,top}=baseAnchor(cell);
-  const mLeft=left+idx*BASE_STEP*cell, mTop=top+idx*BASE_STEP*cell;
-  const panelW=BASE_PANEL_W*cell;
-  landingBody.style.width=panelW+'px';
-  /* the card is the SAME 10-cell block for every question — content does not
-     size it; whatever a step leaves unused sits as white at the foot */
-  landingBody.style.height=(BASE_PANEL_H*cell)+'px';
-  /* panel two cells right and one down of its marker */
-  landingBody.style.left=(mLeft+2*cell)+'px';
-  landingBody.style.top =(mTop+1*cell)+'px';
-  renderMarks(idx,cell);
-}
-/* The question and its quiet one-line hint, set at the top-left of the panel. */
-function addQuestion(q,hint){
-  const h=document.createElement('h1'); h.className='qq'; h.textContent=q;
-  landingBody.appendChild(h);
-  if(hint){ const p=document.createElement('p'); p.className='qhint'; p.textContent=hint; landingBody.appendChild(p); }
-}
-/* Back in the panel's flow, SAVE hanging off the bottom-right corner. SAVE is
-   always live: every base question carries a standing default, so there is
-   nothing to gate. Advancing off the last one reveals the board (advanceLanding
-   → finishBase). */
-function landingSave(label){
-  const foot=document.createElement('div'); foot.className='qfoot';
-  if(landingStep>0){
-    const back=document.createElement('button');
-    back.className='qback'; back.type='button'; back.textContent='Back';
-    back.addEventListener('click',()=>{ landingStep--; renderLandingStep(); });
-    foot.appendChild(back);
-  }
-  landingBody.appendChild(foot);
-  const save=document.createElement('button');
-  save.className='qsave'; save.type='button'; save.textContent=label||'Save';
-  save.addEventListener('click',advanceLanding);
-  landingBody.appendChild(save);
-}
-
-/* Both marks are drawn in the ring's own box and in the frame's own units, so
-   the numbers below are the Figma node's (2875:6324 / 2875:6325) verbatim — the
-   viewBox does the scaling. The apart mark sits outside the box to the right and
-   spills; the riding mark sits ON the ring, up and to the right of centre. */
-const DUO_RING='cx="50.4669" cy="50.4669" r="49.7169" stroke-width="1.5"';
-const DUO_DOT={apart:'cx="118.877" cy="50.4669"', onring:'cx="78.504" cy="10.0934"'};
-function renderLandingShape(){
-  addQuestion('How do you experience time?', 'Don’t overthink your answer, go with your gut');
-  const el=document.createElement('div'); el.className='qduo';
-  [['square','It moves on<br>without me','apart'],
-   ['circle','It carries me<br>along with it','onring']].forEach(([k,t,pos])=>{
-    const b=document.createElement('button');
-    b.type='button'; b.className=pos;
-    b.innerHTML='<svg viewBox="0 0 100.934 100.934" aria-hidden="true">'
-      + '<circle class="ring" '+DUO_RING+'/>'
-      + '<circle class="dot" '+DUO_DOT[pos]+' r="10.0934"/></svg>'
-      + '<b>'+t+'</b>';
-    b.setAttribute('aria-pressed',String(S.baseShape===k));
-    b.addEventListener('click',()=>{
-      S.baseShape=k;
-      [...el.children].forEach(c=>c.setAttribute('aria-pressed',String(c===b)));
-    });
-    el.appendChild(b);
-  });
-  landingBody.appendChild(el);
-  landingSave('Next');
-}
-
-function renderLandingDensity(){
-  addQuestion('How much time do you feel like you have?', "Don't overthink your answer, go with your gut");
-  const el=document.createElement('div'); el.className='qfill';
-  [['little','Too little',14],['enough','Enough',52],['plenty','Plenty',100]].forEach(([k,t,fill])=>{
-    const b=document.createElement('button');
-    b.type='button'; b.setAttribute('role','radio');
-    b.innerHTML='<span class="circ"><i data-fill="'+fill+'"></i></span><b>'+t+'</b>';
-    b.setAttribute('aria-pressed',String(S.baseDensity===k));
-    b.addEventListener('click',()=>{
-      S.baseDensity=k;
-      [...el.children].forEach(c=>c.setAttribute('aria-pressed',String(c===b)));
-    });
-    el.appendChild(b);
-  });
-  landingBody.appendChild(el);
-  /* the circles start empty and fill up to their level, so arriving at the
-     question reads as a small rising motion */
-  requestAnimationFrame(()=>el.querySelectorAll('.circ i').forEach(i=>{ i.style.height=i.dataset.fill+'%'; }));
-  landingSave('Next');
-}
-
-/* ---- Q3: the arrival dial ----
-   A bespoke semicircle drag control. 18:00 sits at the left end, 20:00 at
-   the right, 19:00 at the apex — frac 0..1 across that span, read back into
-   S.baseFrac on every move. The arc's OWN stroke live-previews
-   lineStyleFromFrac() as you drag, using the exact function that will later
-   style the real base grid — that is feedback about the CONTROL, not a
-   preview of the poster, which per spec must stay hidden through this
-   entire sequence. */
-const ARC={cx:150,cy:150,r:120};
-function arcPoint(frac){
-  const a=Math.PI*(1-frac);
-  return {x:ARC.cx+ARC.r*Math.cos(a), y:ARC.cy-ARC.r*Math.sin(a)};
-}
-function arcFracFromClient(svg,clientX,clientY){
-  const pt=svg.createSVGPoint(); pt.x=clientX; pt.y=clientY;
-  const p=pt.matrixTransform(svg.getScreenCTM().inverse());
-  let a=Math.atan2(-(p.y-ARC.cy), p.x-ARC.cx);
-  if(a<0) a = (p.x>ARC.cx) ? 0 : Math.PI;
-  a=Math.max(0,Math.min(Math.PI,a));
-  return 1-a/Math.PI;
-}
-function fracToClock(frac){
-  const total=Math.round(frac*120);              // minutes from 18:00
-  let hh=18+Math.floor(total/60), mm=total%60;
-  return pad2(hh)+':'+pad2(mm);
-}
-function renderLandingArrival(){
-  addQuestion('We said 19:00. When will you actually be there?', "Don't overthink your answer, go with your gut");
-
-  const wrap=document.createElement('div'); wrap.className='arcwrap';
-  wrap.innerHTML=
-    '<svg viewBox="0 0 300 175" id="arcSvg">'
-    + '<path id="arcTrack" d="M 30 150 A 120 120 0 0 1 270 150" fill="none" stroke="var(--line)" stroke-width="1"/>'
-    + '<line x1="150" y1="150" x2="150" y2="136" stroke="var(--line)" stroke-width="1"/>'
-    + '<text x="30" y="168" class="arclabel">18:00</text>'
-    + '<text x="150" y="120" class="arclabel" text-anchor="middle">19:00</text>'
-    + '<text x="270" y="168" class="arclabel" text-anchor="end">20:00</text>'
-    + '<circle id="arcHandle" r="8" tabindex="0" role="slider" aria-label="Arrival time"'
-    +   ' aria-valuemin="0" aria-valuemax="120"></circle>'
-    + '</svg>'
-    + '<p class="arcread" id="arcRead"></p>';
-  landingBody.appendChild(wrap);
-
-  const svg=wrap.querySelector('#arcSvg'), track=wrap.querySelector('#arcTrack'),
-        handle=wrap.querySelector('#arcHandle'), read=wrap.querySelector('#arcRead');
-
-  const paintArc=()=>{
-    const p=arcPoint(S.baseFrac);
-    handle.setAttribute('cx',p.x.toFixed(2)); handle.setAttribute('cy',p.y.toFixed(2));
-    const style=lineStyleFromFrac(S.baseFrac);
-    track.setAttribute('stroke-width',style.strokeWidth.toFixed(2));
-    if(style.dasharray) track.setAttribute('stroke-dasharray',style.dasharray);
-    else track.removeAttribute('stroke-dasharray');
-    const mins=Math.round(S.baseFrac*120);
-    handle.setAttribute('aria-valuenow',mins);
-    handle.setAttribute('aria-valuetext',fracToClock(S.baseFrac));
-    read.textContent = Math.abs(S.baseFrac-0.5)<0.005/1 ? 'On time, '+fracToClock(S.baseFrac)
-                      : S.baseFrac<0.5 ? fracToClock(S.baseFrac)+', early'
-                      : fracToClock(S.baseFrac)+', late';
-  };
-  paintArc();
-
-  let dragging=false;
-  /* the arc runs 18:00–20:00 (120 min); snap to quarter-hour stops, so the
-     handle jumps 18:00, 18:15 … 20:00 — nine positions, 19:00 dead centre */
-  const snapFrac=f=>Math.round(f*8)/8;
-  const move=e=>{
-    if(!dragging) return;
-    S.baseFrac=snapFrac(arcFracFromClient(svg,e.clientX,e.clientY));
-    paintArc();
-  };
-  const up=()=>{ dragging=false; window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); };
-  const down=e=>{
-    dragging=true; e.preventDefault();
-    window.addEventListener('pointermove',move);
-    window.addEventListener('pointerup',up);
-    move(e);
-  };
-  handle.addEventListener('pointerdown',down);
-  svg.addEventListener('pointerdown',e=>{ if(e.target!==handle) down(e); });
-  handle.addEventListener('keydown',e=>{
-    const step=1/8;                                  // one quarter-hour per press
-    if(e.key==='ArrowLeft'||e.key==='ArrowDown'){ S.baseFrac=Math.max(0,S.baseFrac-step); paintArc(); e.preventDefault(); }
-    else if(e.key==='ArrowRight'||e.key==='ArrowUp'){ S.baseFrac=Math.min(1,S.baseFrac+step); paintArc(); e.preventDefault(); }
-    else if(e.key==='Home'){ S.baseFrac=0; paintArc(); e.preventDefault(); }
-    else if(e.key==='End'){ S.baseFrac=1; paintArc(); e.preventDefault(); }
-  });
-
-  /* Not "create poster" — this only reveals the board (grid, no shape yet).
-     The poster itself is only created later, by the dedicated #mkPoster
-     button once every board question is behind you. Its corner cell says START
-     rather than SAVE: this is the one that opens the board. */
-  landingSave('Next');
-}
-
-const LANDING_RENDER={hero:renderLandingHero, shape:renderLandingShape,
-                       density:renderLandingDensity, arrival:renderLandingArrival};
+/* One step left — the aperture. The table stays so a landing step can be added
+   back with one entry, the way the base questions once lived here. */
+const LANDING_RENDER={hero:renderLandingHero};
 function renderLandingStep(){
   const step=LANDING_STEPS[landingStep];
   landing.classList.toggle('hero',step==='hero');
-  /* Every step wipes to nothing and builds itself: the hero its KAIRO mark, the
-     three questions their white panel. Neither the old "Architecture of Time"
-     kicker nor the SHAPE/DENSITY eyebrow prints any more — the number in the
-     corner is the only label a base question carries. */
+  /* The step wipes to nothing and builds itself: the hero its KAIRO mark. */
   landingBody.innerHTML='';
   LANDING_RENDER[step]();
   /* The field is not in this DOM and survives the wipe — it only has to be
-     told the shape it frames just changed. On the way out of the opening step
-     the title characters go with it. */
+     told the shape it frames just changed. */
   const f=ensureField();
-  if(step!=='hero') f.setChars([]);
   f.retarget();
-  /* Snap the panel to the grid for the three questions, now, after first paint,
-     and on resize; the hero positions its own mark. */
-  if(qResize){ window.removeEventListener('resize',qResize); qResize=null; }
-  if(step!=='hero'){
-    layoutQuestionPanel();
-    requestAnimationFrame(layoutQuestionPanel);
-    if(document.fonts&&document.fonts.ready) document.fonts.ready.then(layoutQuestionPanel);
-    qResize=layoutQuestionPanel; window.addEventListener('resize',qResize);
-  }
-  /* The opening step used to be caught by `input` here, because it had a name
-     field to land in. Now its Begin button is the only control on the screen,
-     so it is what the keyboard should arrive on — Enter and Space then work
-     with no handler of their own. */
-  const first=landingBody.querySelector('input,.qduo button,.qfill button,#arcHandle');
-  if(first) setTimeout(()=>first.focus(),80);
 }
 function advanceLanding(){
   if(landingStep+1<LANDING_STEPS.length){ landingStep++; renderLandingStep(); }
   else finishBase();
 }
 function showIntro(){
+  /* nothing to show — straight to the board (SHOW_OPENING off) */
+  if(!LANDING_STEPS.length){ finishBase(); return; }
   introOpen=true; landingStep=0;
   renderLandingStep();
   landing.classList.add('open');
@@ -6199,9 +6611,7 @@ function showIntro(){
   holdWorld(true);
 }
 function finishBase(){
-  teardownHero();          /* no-op unless the hero was the only landing step */
-  if(qResize){ window.removeEventListener('resize',qResize); qResize=null; }
-  clearMarks();
+  teardownHero();
   S.baseDone=true;
   introOpen=false;
   landing.classList.remove('open');
@@ -6511,11 +6921,12 @@ let livePly=0, lastMarkup=['',''];
 function addHitRects(ply){
   if(!ply) return;
   ply.querySelectorAll('.hl').forEach(g=>{
-    /* month is hovered on its ACTUAL silhouette shapes, not a bounding box: its
-       islands are scattered corner to corner, so a bbox rect would be the whole
-       sheet and the grid element under it could never be reached. The bare ground
-       between the islands is left to the grid. */
-    if(g.getAttribute('data-q')==='month') return;
+    /* month and sixweek are hovered on their ACTUAL painted marks, not a
+       bounding box: both scatter corner to corner, so a bbox rect would be the
+       whole sheet and every element under it could never be reached. For the
+       lattice the marks are its cell rects (red, and paper with a red frame);
+       the negative space between cells is left to whatever lies below. */
+    if(g.getAttribute('data-q')==='month' || g.getAttribute('data-q')==='sixweek') return;
     if(g.querySelector(':scope > rect.hit')) return;
     let bb; try{ bb=g.getBBox(); }catch(e){ return; }
     if(!bb || !bb.width) return;
@@ -6539,6 +6950,11 @@ function markEntries(ply){
   ply.querySelectorAll('.hl[data-q]').forEach(g=>{
     const q=g.getAttribute('data-q');
     if(entered.has(q)) return;
+    /* month draws NOTHING until its font resolves (monthLayer returns '' while
+       loading), then asks for one redraw. Tagging the empty not-ready render
+       would burn the one-shot on a blank group, so the real silhouette would
+       land already-entered and never animate. Wait for the font-ready render. */
+    if(q==='month' && monthFontState!=='ready') return;
     entered.add(q);
     g.classList.add('enter');
   });
@@ -6576,9 +6992,9 @@ function startSnakeMorph(g, from, to){
     const full=specs.map(s=>({index:s.index, x:s.sx+(s.ex-s.sx)*e, y:s.sy+(s.ey-s.sy)*e, r:Math.max(0,s.sr+(s.er-s.sr)*e)}));
     const sw=swF+(swT-swF)*e, K=KF+(KT-KF)*e;
     snakeLive={beads:full, sw, merge, K};
-    g.innerHTML=snakeEmit(full.filter(b=>b.r>0.01), sw, merge, K);   // a bead is invisible until it has grown a little
+    g.innerHTML=inkedMarkup(snakeEmit(full.filter(b=>b.r>0.01), sw, merge, K));   // a bead is invisible until it has grown a little
     if(p<1){ snakeRAF=requestAnimationFrame(step); }
-    else { snakeRAF=0; snakeLive=to; g.innerHTML=snakeEmit(to.beads,to.sw,to.merge,to.K); addHitRects(plys[livePly]); }
+    else { snakeRAF=0; snakeLive=to; g.innerHTML=inkedMarkup(snakeEmit(to.beads,to.sw,to.merge,to.K)); addHitRects(plys[livePly]); }
   };
   step(t0);   // render frame 0 (the old layout) synchronously, so the static new snake never flashes first
 }
@@ -6623,9 +7039,9 @@ function startNodeMorph(g, from, to){
     let p=(now-t0)/dur; if(p>1)p=1; const e=ease(p);
     const ends=specs.map(s=>[s.sx+(s.ex-s.sx)*e, s.sy+(s.ey-s.sy)*e]);
     nodeLive={...to, ends};
-    g.innerHTML=nodeEmit(nodeLive);
+    g.innerHTML=inkedMarkup(nodeEmit(nodeLive));
     if(p<1){ nodeRAF=requestAnimationFrame(step); }
-    else { nodeRAF=0; nodeLive=to; g.innerHTML=nodeEmit(to); addHitRects(plys[livePly]); }
+    else { nodeRAF=0; nodeLive=to; g.innerHTML=inkedMarkup(nodeEmit(to)); addHitRects(plys[livePly]); }
   };
   step(t0);   // render frame 0 (old scatter) synchronously, so the new static node never flashes first
 }
@@ -6679,7 +7095,7 @@ function startRingsMorph(gEl, from, to){
     drawn.push(rd);
     specs.push({from:rf/rd, to:rt?1:0});      // gained: 0 -> 1. dropped: 1 -> 0. kept: rf/rt -> 1.
   }
-  stack.innerHTML=ringsStack(to, drawn);
+  stack.innerHTML=inkedMarkup(ringsStack(to, drawn));
   const els=[...stack.querySelectorAll('.rring')];
   const put=e=>{ els.forEach((el,k)=>{
     const sp=specs[k]; const s=sp.from+(sp.to-sp.from)*e;
@@ -6694,7 +7110,7 @@ function startRingsMorph(gEl, from, to){
     if(p<1){ ringsRAF=requestAnimationFrame(step); }
     else {
       ringsRAF=0; ringsLive=to;
-      stack.innerHTML=ringsStack(to, to.radii);     // drop the dropped rings and every leftover transform
+      stack.innerHTML=inkedMarkup(ringsStack(to, to.radii));   // drop the dropped rings and every leftover transform
       addHitRects(plys[livePly]);
     }
   };
@@ -6712,6 +7128,72 @@ function syncRings(){
   if(reduceMotion()){ cancelRingsMorph(); ringsLive=nl; return; }                 // static swap already painted
   startRingsMorph(gEl, from, nl);
 }
+/* The base grid's morph-on-change. The CSS entrance owns the very first
+   appearance (spread from centre); after that, when the shape or the density
+   count changes, the freshly painted (denser) grid is pushed out from the
+   centre again, so it reads as multiplying out of the middle. */
+let baseGridSig=null, baseGridCount=0;
+function syncBaseGrid(){
+  const gEl=plys[livePly].querySelector('.hl[data-q="basegrid"]');
+  if(!gEl){ baseGridSig=null; baseGridCount=0; return; }
+  const isRings=ans('shape')==='circle';
+  const inner=gEl.querySelector('g')||gEl;                  // ghosts inherit stroke from the inner group
+  const els=[...gEl.querySelectorAll(isRings?'circle':'line')].filter(e=>!e.dataset.gtmp);
+  const sig=ans('shape')+':'+(isChosen('density')?ans('density'):'default');
+  const prevSig=baseGridSig, oldN=baseGridCount;
+  baseGridSig=sig; baseGridCount=els.length;
+  if(gEl.classList.contains('enter')) return;              // first appearance owns it (CSS gridGrow)
+  if(prevSig===null || prevSig===sig) return;              // nothing changed (a re-roll, a format morph)
+  const prevShape=prevSig.split(':')[0];
+  if(prevShape!==ans('shape')) return;                     // shape swap: different geometry, no line-diff
+  if(reduceMotion() || !oldN || !els.length) return;
+  const newN=els.length;
+  const SVGNS='http://www.w3.org/2000/svg', EASE='cubic-bezier(.33,1,.68,1)';
+  const cx=parseFloat(els[0].getAttribute(isRings?'cx':'x1'));
+  const cy=parseFloat(els[0].getAttribute(isRings?'cy':'y1'));
+  const maxR=isRings
+    ? Math.max(...els.map(c=>parseFloat(c.getAttribute('r'))))
+    : Math.hypot(parseFloat(els[0].getAttribute('x2'))-cx, parseFloat(els[0].getAttribute('y2'))-cy);
+  const originPx=cx+'px '+cy+'px';
+  if(newN>oldN){
+    /* DENSER: a line at index k coincides with an old one when (k*oldN)%newN===0
+       — those hold still; every other line is NEW and grows out from the centre,
+       so density is ADDED from the middle rather than the grid regenerating. */
+    els.forEach((el,k)=>{
+      const idx=isRings?k+1:k;
+      if((idx*oldN)%newN===0) return;
+      el.style.transformBox='view-box'; el.style.transformOrigin=originPx;
+      const delay=isRings?(parseFloat(el.getAttribute('r'))/maxR)*260:(k/newN)*180;
+      el.animate([{transform:'scale(0)'},{transform:'scale(1)'}],
+                 {duration:460, delay, easing:EASE, fill:'backwards'});
+    });
+  } else if(newN<oldN){
+    /* SPARSER (the reverse): survivors hold still; the OLD lines that are gone are
+       rebuilt as ghosts and retract INTO the centre, then removed. */
+    for(let i=(isRings?1:0); i<(isRings?oldN+1:oldN); i++){
+      if((i*newN)%oldN===0) continue;                      // this old line survives -> already static in the new grid
+      let el;
+      if(isRings){
+        el=document.createElementNS(SVGNS,'circle');
+        el.setAttribute('cx',cx); el.setAttribute('cy',cy); el.setAttribute('r',(maxR*i/oldN).toFixed(2));
+      } else {
+        const a=i*2*Math.PI/oldN;
+        el=document.createElementNS(SVGNS,'line');
+        el.setAttribute('x1',cx); el.setAttribute('y1',cy);
+        el.setAttribute('x2',(cx+maxR*Math.cos(a)).toFixed(2)); el.setAttribute('y2',(cy+maxR*Math.sin(a)).toFixed(2));
+      }
+      el.dataset.gtmp='1'; el.setAttribute('fill','none');
+      inner.appendChild(el);
+      el.style.transformBox='view-box'; el.style.transformOrigin=originPx;
+      const delay=isRings?(1-i/oldN)*220:0;                // outer rings collapse first, rippling inward
+      const anim=el.animate([{transform:'scale(1)'},{transform:'scale(0)'}],
+                            {duration:420, delay, easing:EASE, fill:'forwards'});
+      const clean=()=>el.remove();
+      anim.onfinish=clean; setTimeout(clean, delay+420+300);   // fallback if the tab paused the animation
+
+    }
+  }
+}
 function paint(){
   const svg=buildSVG();
   if(svg===lastMarkup[livePly]) return;
@@ -6722,6 +7204,7 @@ function paint(){
   syncSnake();
   syncNode();
   syncRings();
+  syncBaseGrid();
 }
 function draw(){
   if(rafId) return;
@@ -7027,6 +7510,35 @@ if(DEV_SKIP){
   b.addEventListener('mouseleave',()=>b.style.opacity='.55');
   b.addEventListener('click',devSkipToLast);
   document.body.appendChild(b);
+
+  /* DEV ONLY — Karin's tuning panel for the sixweek lattice: blend mode and
+     opacity, live on the poster. Writes LATTICE_STYLE and repaints; whatever
+     is dialled in here is what buildSVG emits, so the export carries it too.
+     Once a pair is chosen, bake it into LATTICE_STYLE's defaults and this
+     panel (with DEV_SKIP) never ships. */
+  const panel=document.createElement('div');
+  panel.style.cssText='position:fixed;left:10px;bottom:44px;z-index:9999;display:flex;gap:8px;'
+    +'align-items:center;font:11px/1 ui-monospace,monospace;padding:6px 9px;background:#111;'
+    +'color:#fff;border-radius:4px;opacity:.55';
+  panel.addEventListener('mouseenter',()=>panel.style.opacity='1');
+  panel.addEventListener('mouseleave',()=>panel.style.opacity='.55');
+  const sel=document.createElement('select');
+  ['normal','multiply','screen','overlay','darken','lighten','color-burn','color-dodge',
+   'hard-light','soft-light','difference','exclusion','hue','saturation','color','luminosity']
+    .forEach(m=>{ const o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
+  sel.value=LATTICE_STYLE.blend;
+  sel.style.cssText='font:inherit;background:#222;color:#fff;border:1px solid #444;border-radius:3px';
+  const rng=document.createElement('input');
+  rng.type='range'; rng.min='0'; rng.max='1'; rng.step='0.05'; rng.value=String(LATTICE_STYLE.opacity);
+  rng.style.width='90px';
+  const read=document.createElement('span');
+  const label=document.createElement('span'); label.textContent='lattice';
+  const show=()=>{ read.textContent=Math.round(LATTICE_STYLE.opacity*100)+'%'; };
+  sel.addEventListener('input',()=>{ LATTICE_STYLE.blend=sel.value; draw(); });
+  rng.addEventListener('input',()=>{ LATTICE_STYLE.opacity=+rng.value; show(); draw(); });
+  show();
+  panel.append(label,sel,rng,read);
+  document.body.appendChild(panel);
 }
 
 /* ---------- HOVER NOTES (test: month) ----------
@@ -7069,8 +7581,7 @@ const VAC_READ={
   '1':"One memory that never leaves. Everything else fades, but that one moment built you.",
   '2':"Two that keep surfacing. Your whole sense of yourself hangs on those two.",
   '3':"Three that shaped you. Enough to know who you are, few enough to hold all at once.",
-  '4':"Four that keep coming back. You carry more of your own story than most people do.",
-  '5+':"More than a handful. Your past isn’t a blur, it’s moments you can still name."
+  '4+':"More than a handful. Your past isn’t a blur, it’s moments you can still name."
 };
 const BORN_READ={
   '28':"Twenty-eight, February. You started in the short month, the one that never quite fits the calendar.",
@@ -7091,6 +7602,18 @@ const DECADE_READ={
   90:"Nine decades. Near the top of the dial. You imagine yourself among the ones who really stay.",
   100:"A full century. You’ve set the marker as far as it goes. Time, to you, is the thing that won’t run out."
 };
+/* The week/weekend bar has twenty-one stops, so the read works in BANDS rather
+   than one line per stop — the two ends, the two leans, and the dead centre.
+   Band edges agree with the question's own display() (below 45 reads as the
+   week, above 55 as the weekend), so the card's title and its line never
+   disagree about which side you are on. */
+function sixweekRead(v){
+  if(v<=15) return "The week is the real thing and the weekend is a pause in it. You like your time structured, and you keep it that way.";
+  if(v<=40) return "The week carries more weight for you. Free days are good, but the shape of your time is built on the working ones.";
+  if(v<=55) return "Dead even. The plan and the pause weigh the same to you, and you won’t rank one over the other.";
+  if(v<=80) return "You tilt toward the weekend. The week runs fine, but it mostly exists to get you to the open days.";
+  return "You live for the weekend. The week is the price of it, and the free days are the point.";
+}
 function personalNote(qid){
   const D=derive();
   if(qid==='month'){
@@ -7103,7 +7626,7 @@ function personalNote(qid){
   }
   if(qid==='vacations'){
     const v=String(ans('vacations'));
-    return {t:(v==='5+'?'5+ memories':v+(v==='1'?' memory':' memories')), b:VAC_READ[v]||''};
+    return {t:(v==='4+'?'4+ memories':v+(v==='1'?' memory':' memories')), b:VAC_READ[v]||''};
   }
   if(qid==='febdays'){
     const v=String(ans('febdays'));
@@ -7113,34 +7636,52 @@ function personalNote(qid){
     const R=barRing(BANK.decades);
     return {t:R.cur+' years', b:DECADE_READ[R.cur]||''};
   }
+  if(qid==='sixweek'){
+    /* same guard as the lattice itself: a non-numeric answer falls to the
+       bar's centre, so the card can never read a side nobody picked */
+    const raw=ans('sixweek');
+    const v=Number.isFinite(+raw)?+raw:50;
+    return {t:BANK.sixweek.display(v), b:sixweekRead(v)};
+  }
+  if(qid==='saying'){
+    const v=String(ans('saying'));
+    return {t:v, b:SAYING_READ[v]||''};
+  }
   if(qid==='grid'){
-    /* the grid's OWN card: a plain statement of what the first three questions
-       (shape, density, arrival) told the system about you. */
+    /* the grid's OWN card: a plain statement of what its two questions (shape,
+       density) told the system about you. Nothing to state until at least the
+       shape is chosen — before that the ground is bare and says nothing. */
+    if(!isChosen('shape')) return null;
     return {t:'Your time', b:gridNote()};
   }
   return null;
 }
+/* one line per word — the read behind the pair the poster prints */
+const SAYING_READ={
+  Trust:"Still here. You let time hold you, and it does. What matters doesn’t leave.",
+  Worry:"What now. You live a step ahead of the moment, scanning for the next thing.",
+  Presence:"Right now. You keep arriving in the moment you’re actually in.",
+  Regret:"Long gone. Part of you stays turned toward what already happened."
+};
 const hoverCard=document.createElement('div');
 hoverCard.id='hoverCard';
 hoverCard.innerHTML='<p class="hc-t"></p><p class="hc-b"></p>';
 
 /* The BACKGROUND GRID's reading, shown on its OWN hover card. It states plainly
-   what the first three questions established about you: how you experience time
-   (shape), how much of it you feel you have (density) and how you tend to arrive
-   (the dial). Kept factual, not poetic. */
+   what its two questions established about you: how you experience time (shape)
+   and how much of it you feel you have (density). Kept factual, not poetic.
+   The density line only prints once its question has actually been chosen —
+   the grid may be standing on density's default while question two is still
+   ahead, and that default is nobody's answer. */
 function gridNote(){
-  const shape = S.baseShape==='circle'
+  const shape = ans('shape')==='circle'
     ? 'You feel time carries you along with it.'
     : 'You feel time moves on without you.';
   const DENS={little:'You feel you have too little of it.',
               enough:'You feel you have about enough of it.',
               plenty:'You feel you have plenty of it.'};
-  const dens = DENS[S.baseDensity]||DENS.enough;
-  const f=S.baseFrac;
-  const frac = Math.abs(f-0.5)<0.06 ? 'You tend to arrive right on time.'
-             : f<0.5 ? 'You tend to arrive early.'
-             : 'You tend to arrive late.';
-  return shape+' '+dens+' '+frac;
+  const dens = isChosen('density') ? (DENS[ans('density')]||DENS.enough) : '';
+  return dens ? shape+' '+dens : shape;
 }
 document.body.appendChild(hoverCard);
 function showHoverNote(qid, hl){
@@ -7149,24 +7690,38 @@ function showHoverNote(qid, hl){
   t.textContent=note.t; b.textContent=note.b;
   const fr=frame.getBoundingClientRect(), cell=cellSize(), o=gridOrigin();
   /* type + padding measured in cells, exactly like the question cards */
-  hoverCard.style.width=(8*cell).toFixed(1)+'px';
+  hoverCard.style.width=(NOTE_CELLS*cell).toFixed(1)+'px';
+  hoverCard.style.height='auto';
   hoverCard.style.padding=(Q_INSET*cell).toFixed(1)+'px';
   t.style.fontSize=(Q_HFS*1.15*cell).toFixed(1)+'px';
   t.style.marginBottom=(Q_HGAP*cell).toFixed(1)+'px';
   b.style.fontSize=(Q_HFS*cell).toFixed(1)+'px';
   b.style.lineHeight=(Q_HLH*cell).toFixed(1)+'px';
   hoverCard.classList.add('on');
-  /* ALWAYS one cell right of the sheet; vertically CENTRED on the hovered element,
-     both edges snapped back to the interface grid. */
+  /* The box's natural height (title + body + padding) almost never lands on a
+     whole cell, so it used to end partway through a square — the one part of
+     this card that wasn't on the lattice. Rounded up to the next whole cell,
+     same as the question panels (see panelHeightCells). */
+  const ch=Math.ceil(hoverCard.offsetHeight/cell-0.01)*cell;
+  hoverCard.style.height=ch.toFixed(1)+'px';
+  /* PINNED TO THE RIGHT MARGIN, not to the sheet: its right edge sits SIDE_CELLS
+     in from the screen's right edge, the same inset the questions take on the
+     left, so the two columns balance the poster between them (Karin, 16 Aug).
+     Vertically CENTRED on the hovered element. Both edges snapped to the grid. */
   const phaseX=((o.x%cell)+cell)%cell, phaseY=((o.y%cell)+cell)%cell;
   const er=(hl&&hl.getBoundingClientRect)?hl.getBoundingClientRect():fr;
-  const cw=8*cell;
-  /* one cell right of the sheet, but never off the right edge — clamp to the last
-     grid line that still fits the card, so it stays on the lattice either way */
-  const wantLeft=phaseX+Math.round((fr.right+cell-phaseX)/cell)*cell;
-  const maxLeft =phaseX+Math.floor((window.innerWidth-cw-0.4*cell-phaseX)/cell)*cell;
-  const left=Math.min(wantLeft, maxLeft);
-  const ch=hoverCard.offsetHeight;
+  const cw=NOTE_CELLS*cell;
+  /* the last grid line at or before the right edge, then SIDE_CELLS back in and
+     the card's own width — and never so far left that it lands on the sheet.
+     No extra cell of air off the sheet: the union already carries one, which is
+     the cell the width budget hands the note (see SIDE_CELLS).
+     Shifted one further cell in from that margin (Karin): the note sat right at
+     the SIDE_CELLS inset the questions use, which read as flush with the edge
+     rather than sitting comfortably inside it. */
+  const lastLineX=phaseX+Math.floor((window.innerWidth-phaseX)/cell)*cell;
+  const wantLeft=lastLineX-(SIDE_CELLS+NOTE_CELLS)*cell+cell;
+  const minLeft =phaseX+Math.ceil((fr.right-phaseX)/cell)*cell+cell;
+  const left=Math.max(wantLeft, minLeft);
   let top=phaseY+Math.round(((er.top+er.height/2)-ch/2-phaseY)/cell)*cell;
   /* keep the card's FOOT at least one cell above the sheet's bottom line — a mark
      at the very foot (the decades band) would otherwise centre the card off the
@@ -7401,7 +7956,9 @@ qsys.addEventListener('click',e=>{
     }
     return;
   }
-  const opt=e.target.closest('.qopts button');
+  /* .qduo/.qfill are the shape and density controls, carried over from the old
+     landing screens — HTML buttons like .qopts, registering the same way */
+  const opt=e.target.closest('.qopts button, .qduo button, .qfill button');
   if(opt){
     const cur=snakeQ();
     if(cur){
@@ -7583,14 +8140,20 @@ if(CONFIG.FORMAT_SWITCHER){
   fmtBtn.style.display='none';
   fmtMenu.style.display='none';
 }
+/* Preload the month layer's font at boot, well before Q3 can be reached (it is
+   the third LINEAR_LEAD question, so there are always at least two other picks
+   first). ensureMonthFont's own redraw-on-load still fires as a safety net if
+   the load is somehow still pending, but by Q3 it is normally already 'ready',
+   so the grow-in entrance starts on the SAME frame as the pick — no visible
+   delay waiting on a font fetch. */
+ensureMonthFont();
 newSeed();
 buildLogo();
 relayout();
 
 /* SKIP THE OPENING — a development convenience, not a feature.
-   Add ?skip to the URL and the four landing steps are bypassed: the three base
-   answers take the values they already default to (square / enough / on time,
-   from PROFILE_DEFAULTS), and the board opens on question one. Nothing else
+   Add ?skip to the URL and the opening screen is bypassed: the board opens on
+   question one, exactly where START would have landed you. Nothing else
    behaves differently, so what you see past this point is what everyone sees.
 
    Driven by the URL rather than by CONFIG on purpose: a flag in the source is

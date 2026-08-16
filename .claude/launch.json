@@ -2,14 +2,28 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "aot-static",
+      "name": "aot-verify",
       "runtimeExecutable": "python3",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "8792"
-      ],
-      "port": 8792
+      "runtimeArgs": ["-m", "http.server", "8796"],
+      "port": 8796
+    },
+    {
+      "name": "aot-flow-test",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8797"],
+      "port": 8797
+    },
+    {
+      "name": "aot-anim",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8799"],
+      "port": 8799
+    },
+    {
+      "name": "aot-transition",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8802"],
+      "port": 8802
     }
   ]
 }
