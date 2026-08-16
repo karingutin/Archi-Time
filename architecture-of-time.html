@@ -708,9 +708,16 @@
      Placed under the words by shapeDuoMarkup; everything inside is cells, so
      it breathes with the panel.
        box to box    94/45 = 2.089       circle->label 10/45 = .222
-       label 14/45 = .311 (12 + Karin's 2pt)   leading 1.33 -> .414           */
+       label 14/45 = .311 (12 + Karin's 2pt)   leading 1.33 -> .414
+     The box-to-box gap is NO LONGER the Figma 2.089 (Karin, 16 Aug: "make the
+     circles closer to each other"). That measure came off the LANDING screen,
+     where the pair had a full-width panel to sit in; in the 9-cell question
+     panel it left the two rings reading as two separate controls rather than
+     one either/or. Note the gap is measured box to box and the "apart" mark
+     spills ~0.5 cell to the right of its own box, so the visible air between
+     the options is about half a cell less than the number below.             */
   .qpanel .qduo{display:flex;justify-content:center;align-items:flex-start;
-    gap:calc(var(--cell)*2.089)}
+    gap:calc(var(--cell)*1.2)}
   /* No width here: each option is exactly the circle's own box wide, and the
      circle takes the FEBDAYS row's diameter, set inline by shapeDuoMarkup —
      Q1's rings and Q4's circles are one size of the same mark, by decision. */
@@ -735,14 +742,16 @@
   /* DENSITY (bank Q2): three circles filling up — a sliver, about half,
      brimming. The landing control's px measures converted to cells at the same
      45px drawing: circle 70/45 = 1.556, gap 26/45 = .578, circle->label
-     16/45 = .356, label 13/45 = .289. */
-  .qpanel .qfill{display:flex;justify-content:center;align-items:flex-end;
-    gap:calc(var(--cell)*.578)}
+     16/45 = .356, label 13/45 = .289.
+     No gap here: DENSITY_GAP owns it, because densityFillMarkup now SOLVES for
+     the diameter from it (see there) and the number cannot live in two places
+     and be trusted. It arrives inline on the row. */
+  .qpanel .qfill{display:flex;justify-content:center;align-items:flex-end}
   .qpanel .qfill button{background:transparent;border:0;cursor:pointer;display:flex;
     flex-direction:column;align-items:center;padding:0;gap:calc(var(--cell)*.356)}
-  /* no width/height here: the circle takes the MONTH question's own diameter
-     (ringCircleD), set inline by densityFillMarkup, so the two questions'
-     circles can never drift into two sizes of the same mark */
+  /* no width/height here: densityFillMarkup sets the diameter inline, solved
+     from the hugged panel width and DENSITY_GAP so this three-up row ends
+     flush with the question's own left and right edges */
   .qpanel .qfill .circ{position:relative;box-sizing:border-box;border-radius:50%;
     border:2px solid #C2C2BE;overflow:hidden;transition:border-color .16s}
   .qpanel .qfill .circ i{position:absolute;left:0;right:0;bottom:0;height:0;background:#C2C2BE;
@@ -955,8 +964,19 @@
                      stroke-linecap:round}
   .qpanel .bar-hit{fill:transparent}
   .qpanel .bar-val{fill:var(--q-text);font-family:var(--q-face);font-weight:700}
-  .qpanel .bar-unit{fill:var(--q-past);font-weight:400}
-  .qpanel .bar-end{fill:var(--q-past);font-family:var(--q-face);font-weight:400}
+  /* THE BAR'S SMALL TYPE READS. --q-past is #D6D6D6, and that colour has a job:
+     it is the MATERIAL grey — the track the bar has not been pulled along yet,
+     the dial's unlit ticks — where being almost invisible is the point, because
+     it is drawn to say "not yet". These two are LABELS, not material: "years"
+     names what the number counts and "The week / Weekend" name which end of the
+     bar you are at, and at #D6D6D6 neither of them survived white. So they take
+     a grey that is still plainly quieter than the answer beside them (#111) but
+     is actually legible. Karin, 16 Aug, on both bars: "a bit more readable,
+     nothing drastic" — with BAR.unitCells 0.30 -> 0.36, this is the other half.
+     Only these two rules move; --q-past itself is untouched, so nothing that
+     really is material got louder with them. */
+  .qpanel .bar-unit{fill:#949494;font-weight:400}
+  .qpanel .bar-end{fill:#949494;font-family:var(--q-face);font-weight:400}
   .qpanel svg:focus-visible{outline:none}
   .qpanel .dial-arc{fill:none;stroke:var(--q-past)}
   .qpanel .dial-tick{fill:var(--q-past)}
@@ -1505,10 +1525,29 @@ const QUESTION_BANK=[
      into the layer's data-q, the roll table and the CSV columns. */
   {id:'alarms', type:'number', label:'Snooze',
    title:'How many times do you press snooze in the morning?',
-   hint:'Think about a normal morning, not your best one',
+   /* "not your best one" cut (Karin, 16 Aug): it was a joke at the answerer's
+      expense, and the line reads straighter without it. */
+   hint:'Think about a normal morning',
    min:0, max:12, unit:'snoozes', default:1,
    display:v=>String(v)},
-  /* The FOURTH: the nested rings in the top-right corner. Its answer is the ring
+  /* THE FOURTH, and the two below it are in the order Karin asked for on
+     16 Aug — decades BEFORE memories, the two swapped from where they were
+     written. The bank's order is the asking order (see pickQuestions; both sit
+     inside the pinned lead), so moving the entries is the whole change. The
+     layers it reorders are the foot band and the corner rings, which do not
+     overlap on the sheet, so nothing about the composition depends on which
+     lands first. */
+  /* A BAR with ten stops, 10..100 years, and its answer drives the geometric
+     rectangle pattern along the foot of the sheet — one more column of
+     rectangles per decade (10y -> 3 columns, 100y -> 12). */
+  {id:'decades', type:'bar', label:'Decades',
+   title:'How many more decades do you honestly expect to have?',
+   /* Kept under 42 characters on purpose: a hint that wraps to two lines pushes
+      the bar (hung under the text) half a cell down the card for no reason. */
+   hint:'Heavy one, we know',
+   min:10, max:100, step:10, unit:'years', default:50,
+   display:v=>v+' years'},
+  /* THE FIFTH: the nested rings in the top-right corner. Its answer is the ring
      COUNT and nothing else — every other control on the tool is frozen (see
      RINGS), and the lean is the roll (see ROLLS).
      A `choice`, so it is a CARD: a row of circles, one per option, and '4+' on
@@ -1520,16 +1559,6 @@ const QUESTION_BANK=[
    hint:'How many of them surface?',
    options:['1','2','3','4+'],
    display:v=>v},
-  /* The fifth base question. A BAR with ten stops, 10..100 years, and its answer
-     drives the geometric rectangle pattern along the foot of the sheet — one more
-     column of rectangles per decade (10y -> 3 columns, 100y -> 12). */
-  {id:'decades', type:'bar', label:'Decades',
-   title:'How many more decades do you honestly expect to have?',
-   /* Kept under 42 characters on purpose: a hint that wraps to two lines pushes
-      the bar (hung under the text) half a cell down the card for no reason. */
-   hint:'Heavy one, we know',
-   min:10, max:100, step:10, unit:'years', default:50,
-   display:v=>v+' years'},
   /* The colourway — the LAST question of every session (see `last` and
      pickQuestions), the one that recolours the whole poster. A card: six split
      circles, each half one colour and half the other. Wiring to the poster comes
@@ -4267,29 +4296,54 @@ const SNAKE={
      because a fixed height left the short questions with a field of white
      between the words and the answer. Width stays 6 — that is what the clear
      band beside the poster affords. */
-  /* dx:1, not 2. ONE DIAGONAL CELL FROM THE MARKER — Karin's rule, 16 Aug: the
-     panel's top-left touches the marker's cell corner-to-corner, the same way
-     total touches the marker's own corner. It lands in the SAME column as
-     total (dx 1) and one row further down, so it also still hangs off total's
-     corner, not just the marker's — both corner rules hold at once. w here is
-     the WIDEST a panel may be — the band is sized for it, so spanW is computed
-     from this one number whatever an individual question asks for; per-question
-     widths live in PANEL_W. */
-  panel:{dx:1, dy:1, w:10},
+  /* dx:2, and this is the number Karin's "the whole question container should
+     move one grid column to the right (so it's not right below /10)" changes.
+
+     It was 1, which put the panel in the SAME COLUMN as total — the panel's
+     left edge sat directly under the "/10" and read as hanging off it rather
+     than as stepping past it. At 2 the panel's top-left lands on total's
+     bottom-right corner instead: still corner-to-corner, still one diagonal
+     step, but off the piece before it rather than under it, which is what the
+     composition says every part should do.
+
+     WHAT ACTUALLY MOVES IS THE MARKER, and that is not a compromise, it is
+     arithmetic. The band is spent to the cell: with the colourway's 3-cell
+     Create the figure already reaches the poster's keep-out edge exactly (see
+     spanW), so there is no column to the right to move into. QUESTION_LEFT_CELLS
+     pins the PANEL's inset at 3 from the screen edge — Karin's other standing
+     rule, and the one the note's inset on the far side is matched to — so the
+     marker's column is derived as inset minus dx (see `left` in snakeBand) and
+     raising dx steps the marker and its counter one column LEFT. The panel and
+     Create do not move a pixel; the relationship Karin asked to break is broken
+     from the other end. Chosen by Karin, 16 Aug, over narrowing every panel to
+     8 cells or shifting the poster off its even margins.
+
+     w here is the WIDEST a panel may be — the band is sized for it, so spanW is
+     computed from this one number whatever an individual question asks for;
+     per-question widths live in PANEL_W. */
+  panel:{dx:2, dy:1, w:10},
   /* dx follows the panel's width and dy its height, so Next keeps hanging off
      the panel's lower-right corner whatever size the panel is */
   save: {w:2, h:1},
   /* the figure's worst-case extent, for fitting. spanW is the FULL reach to
-     Next's far edge, not just the panel's: dx 1 + the panel's real width (9,
-     every panel — see PANEL_W) + Next's own width (2) = 12. Forgetting Next's
+     Next's far edge, not just the panel's: dx 2 + the panel's real width (9)
+     + Next (2) = 13, and the colourway reaches exactly the same 13 the other
+     way round — 2 + an 8-cell panel (see PANEL_W_ID) + a 3-cell Create (see
+     SAVE_W_ID). THIRTEEN IS THE BAND, and it is not a soft limit: at
+     1728x1117 a fourteenth column puts the step marker half a cell off the
+     left of the screen, and snakeFits cannot see it because iMin is derived
+     from this very number. Anything that wants another column has to take it
+     from a panel. Forgetting Next's
      reach here (an 11 tried on 16 Aug) is what broke every single question:
      snakeFits checks EACH part clears the poster, Next's box was the one that
      didn't, so every question fell to the anchored fallback and the corner
      rule broke everywhere at once — not a cosmetic miss, a functional one.
+     The 3-cell Create was the same trap one question wide, and the reason its
+     panel gives a cell back rather than this number growing.
      spanH is the figure's TRUE reach below its marker: the panel hangs one row
      down and is PANEL_H (10) tall, and Next takes one more row off its foot —
      1 + 10 + 1 = 12. */
-  spanW:12, spanH:12,
+  spanW:13, spanH:12,
   /* Zero. This was a cell of clearance I had added between the figure and the
      poster's keep-out box; spending it on the panel is what the extra width
      costs, and Save may sit flush against that edge. The keep-out box already
@@ -4302,8 +4356,11 @@ const SNAKE={
      snakeBand so it can never push the last question's Next off the bottom.
      Karin's "two cells lower" (16 Aug) is NOT a change to this number: three
      cells is what it always asked for, and the clamp was quietly eating two of
-     them by reserving a worst-case panel under every question. See snakeReach. */
-  top:3
+     them by reserving a worst-case panel under every question. See snakeReach.
+     Two, not three (Karin, 16 Aug): "the question numbers should start one row
+     upwards" — the whole run steps up a cell, markers, panels and Next with it,
+     since every part of the figure hangs off the first marker's row. */
+  top:2
 };
 
 /* The free band, in grid cells from the origin. Two numbers per axis: the
@@ -4438,7 +4495,22 @@ const Q_HFS=0.382, Q_HLH=0.508, Q_HGAP=0.218;
    four tangent circles and three rows come out ~9x9, and the wheel's arc keeps
    its width from the derived radius (see DIAL_R_MAX). */
 const PANEL_W={number:9, choice:9, duo:9, bar:9};
-const panelW=q=>Math.min(SNAKE.panel.w, PANEL_W[q&&q.type] || SNAKE.panel.w);
+/* EIGHT FOR THE COLOURWAY, and this is what pays for its 3-cell Create.
+   The run is spent to the cell: the band beside the poster affords THIRTEEN
+   columns of figure and no more (see spanW, and the sizes it was checked at —
+   at 1728x1117 a fourteenth column pushes the step marker clean off the left
+   edge of the screen, and snakeFits cannot catch that because it bounds the
+   marker against the very number that moved it). The colourway asks for one
+   more cell of button than every other question, so it gives one back on its
+   panel and the figure stays 13 wide: 2 + 8 + 3, against everyone else's
+   2 + 9 + 2.
+   It costs nothing visible. colorwayMarkup caps its swatch at COLORWAY_D_MAX
+   and that cap already bound at nine cells (the width-fit diameter was 2.66
+   against a 2.3 cap), so at eight it is still 2.3 — the same six swatches at
+   the same size, centred in a box one cell narrower. */
+const PANEL_W_ID={colorway:8};
+const panelW=q=>Math.min(SNAKE.panel.w,
+  (q && PANEL_W_ID[q.id]) || PANEL_W[q&&q.type] || SNAKE.panel.w);
 /* ONE HEIGHT FOR EVERY QUESTION, in cells. The per-type and per-question height
    table (choice 10 / number 7 / bar 6 / colorway 7 / saying 9, circle rows to
    their content) is gone: per the Figma redesign every question card is the SAME
@@ -4484,7 +4556,12 @@ function textBottomCells(q){
    which ceils to 10 instead — the panel comes back to a square-ish 9x10, the
    grid sits a bit higher under the hint, and Next follows it up by exactly
    one cell (its top is panel.top + panel.height — see renderSnake). */
-const CTRL_GAP={ month:6/36.68, alarms:5/36.68, vacations:23/36.68, febdays:15/36.68,
+/* No `alarms` here on purpose. It had a 5/36.68 entry, and it was dead — the
+   wheel is the one control that does not read this table, because its gap has
+   to appear in three places at once (the flow margin, the viewBox crop and the
+   circle's centre) and so lives in DIAL_GAP. Two numbers for one gap that no
+   longer agreed with each other is a trap, not a spare. */
+const CTRL_GAP={ month:6/36.68, vacations:23/36.68, febdays:15/36.68,
                  shape:26/45, density:26/45 };
 const ctrlGap=id=>CTRL_GAP[id]!==undefined ? CTRL_GAP[id] : Q_GAP;
 
@@ -4544,8 +4621,21 @@ function snakeReach(){
   return deepest;
 }
 
+/* THE WAY OUT IS THREE CELLS WIDE ON THE LAST QUESTION ONLY (Karin, 16 Aug):
+   the colourway's button reads "Create" rather than "Next", because it is the
+   one press that makes the poster instead of walking to the next question, and
+   a two-cell box could not hold the word at the button's own size without it
+   crowding both edges. Every other question keeps SNAKE.save.w. */
+const SAVE_W_ID={colorway:3};
+const saveW=q=>(q && SAVE_W_ID[q.id]) || SNAKE.save.w;
+/* and the word on it, for the same reason and by the same key */
+const saveLabel=q=>(q && q.id==='colorway') ? 'Create' : 'Next';
+
 function snakeParts(i,j,sx,sy){
   const PH=snakeParts.h||6, PW=snakeParts.w||SNAKE.panel.w;
+  /* set by snakeFigure from the question in hand; SNAKE's own number when the
+     figure is being sized without one (the landing's placeholder) */
+  const SW=snakeParts.saveW||SNAKE.save.w;
   const put=(o)=>({
     c: sx>0 ? i+o.dx : i-o.dx-(o.w-1),
     r: sy>0 ? j+o.dy : j-o.dy-(o.h-1),
@@ -4557,7 +4647,7 @@ function snakeParts(i,j,sx,sy){
     panel:put({...SNAKE.panel, w:PW, h:PH}),
     /* Save hangs off the panel's lower-right corner, so its row follows the
        panel's height rather than being a constant */
-    save:put({...SNAKE.save, dx:SNAKE.panel.dx+PW, dy:1+PH})
+    save:put({...SNAKE.save, w:SW, dx:SNAKE.panel.dx+PW, dy:1+PH})
   };
 }
 
@@ -4588,7 +4678,7 @@ function snakeFigure(n){
      wants a WIDTH (panelSize's w is fine, unaffected by hugging). */
   const q=ASKED[n];
   const PS = q ? {w:panelSize(q).w, h:panelHeightCells(q,cellSize())} : {w:SNAKE.panel.w, h:6};
-  snakeParts.h=PS.h; snakeParts.w=PS.w;
+  snakeParts.h=PS.h; snakeParts.w=PS.w; snakeParts.saveW=saveW(q);
   for(const [sx,sy] of [[1,1],[1,-1],[-1,1],[-1,-1]]){
     const P=snakeParts(m.i,m.j,sx,sy);
     if(snakeFits(P,B)) return {...P, sx, sy, i:m.i, j:m.j, fitted:true};
@@ -4731,7 +4821,18 @@ const DIAL_LR=1.112;                               // label ring, as a multiple 
 const DIAL_SIDES=5;                                // numbers each side (±3 show; the
                                                   // extra ±2 are the clipped margin
                                                   // the spin turns through)
-const DIAL_GAP=5/36.68;                            // Figma gap text->control, in cells
+/* Gap from the words down to the wheel, in cells. Q_GAP, not the Figma 5px it
+   was (Karin, 16 Aug: "the circle should go a few pixels down, so a bit more
+   afar than the question itself and it's a bit more cropped") — 5px is a third
+   of what every other control leaves, so the wheel sat almost on the hint.
+   It buys BOTH halves of that note with one number, which is why it is the one
+   that moved. The wheel's svg carries overflow:visible, so what actually crops
+   the circle is the PANEL's foot, and the foot does not move: the panel's own
+   height is unchanged (its content runs 7.18 cells of an 8-cell box, and this
+   gap has ~0.8 of a cell of slack to spend before the box would round up to 9
+   and hand the crop back). So every pixel the wheel steps down is a pixel more
+   of it cut off at the bottom. */
+const DIAL_GAP=Q_GAP;
 const DIAL={
   step:27,                              // degrees per value (mock ~0, 32, 55, 80)
   dragPerStep:0.62,                     // cells of pointer travel per value
@@ -4920,7 +5021,13 @@ const BAR={
   fat:0.34,                 // the bar at ten years: short and thick
   thin:0.15,                // the bar at a hundred: long and drawn out
   valCells:0.66,            // the value, riding above the end of the bar
-  unitCells:0.30,           // its unit, set small beside it
+  /* The small type on the bar, and the ONE size behind both of its uses: the
+     unit beside the readout ("years") and the named ends ("The week" /
+     "Weekend"). 0.36, up from 0.30 (Karin, 16 Aug, on both bars: "a bit more
+     readable, nothing drastic"). It is still the quietest thing on the card —
+     under the hint at 0.382 and half the readout at 0.66 — so it reads without
+     starting to compete with the answer, which is what the bar is for. */
+  unitCells:0.36,
   valGap:0.26,              // bar top -> the value's baseline box
   rubber:0.05               // how far past either end the pull may stretch
 };
@@ -5213,7 +5320,8 @@ function renderSnake(){
   html+='<button type="button" class="qsave'+A+(locked?' locked':'')+'"'
       + (locked?' disabled aria-disabled="true"':'')
       + ' style="'+cssBox(cellBox(F.save))
-      + ';font-size:'+(0.26*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">Next</button>';
+      + ';font-size:'+(0.26*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">'
+      + saveLabel(q) + '</button>';
 
   qsys.innerHTML=html;
 
@@ -5221,7 +5329,8 @@ function renderSnake(){
      and the control add up to — which lands its bottom edge in the middle of a
      cell. THE PANEL IS INTERFACE, so it has to sit on the lattice like every
      other part of it: measure the hug, round the height UP to whole cells, and
-     ASSIGN it. The slack falls at the panel's foot (the composition inside is
+     ASSIGN it. The slack falls at the panel's foot (see settleControl for the
+     questions whose control then takes half of it back; the composition inside is
      tuned separately), and Next then hangs off a corner that is really on a
      line rather than off an estimate. Karin's rule, 16 Aug.
      Only the downward-opening figure reseats Next: the mirrored ones seat it a
@@ -5234,6 +5343,7 @@ function renderSnake(){
       const saveEl=qsys.querySelector('.qsave');
       if(saveEl) saveEl.style.top=(pb.top + hCells*c).toFixed(1)+'px';
     }
+    settleControl(panelEl, hCells*c, q);
   }
 
   /* THE DENSITY CIRCLES' rise, on arrival only: the markup came out with the
@@ -5287,6 +5397,56 @@ function renderSnake(){
   if(!needsPick(q) && S.answers[q.id]===undefined) S.answers[q.id]=q.default;
 }
 
+/* WHICH CONTROLS SETTLE, by question id. Not a blanket rule and not by control
+   type: month (Q3) and saying (Q9) are the two Karin has asked to sit lower, and
+   febdays (Q4) and vacations (Q7) draw the SAME circle row as saying from the
+   same function, so keying on the markup would have moved two questions nobody
+   asked about. If they should match, add their ids here — that is the whole
+   change. */
+const SETTLE_CONTROL={month:'svg.mring', saying:'svg.vcirc'};
+
+/* THE CONTROL SETTLES INTO THE MIDDLE OF THE ROOM THE WORDS LEFT.
+   Karin, 16 Aug: "the circles should go a bit down so the padding above and
+   below are the same" (Q3), and "take the circles a bit down" (Q9). Both read
+   the same way — the month at 0.16 of a cell of air above against 0.99 below,
+   saying at 0.41 against 0.88. The panel is snapped UP to whole cells and all
+   of that slack fell at the foot, so the control was stuck to the words with a
+   field of white beneath it. Half the difference moves it down and the two
+   match.
+
+   WHY IT IS DONE HERE AND NOT IN THE MARKUP. The markup runs before there is
+   any layout, so the only text height it can have is panelSize's ESTIMATE —
+   and for the month the estimate is a line out (it reads the title as three
+   lines where it sets in two). Deriving the gap from that put the grid 0.4 of a
+   cell off, in the wrong direction. This point in renderSnake is the one place
+   the REAL numbers exist: the panel's height has just been assigned and its
+   children have really been laid out.
+
+   It costs nothing. The snap directly above already read offsetHeight, so the
+   layout is forced whether this runs or not — the standing rule against reading
+   back geometry (see panelSize) is about not ADDING a pass, and this adds none.
+
+   Only ever DOWN: a panel too tight to give the control its Figma gap keeps the
+   Figma gap and stays as it was. */
+function settleControl(panelEl, panelH, q){
+  const sel=SETTLE_CONTROL[q&&q.id];
+  const grid=sel && panelEl.querySelector(sel);
+  const prev=grid && grid.previousElementSibling;
+  if(!grid || !prev) return;
+  /* getBoundingClientRect, not offsetTop: an SVG element is not an HTMLElement
+     and carries none of the offset* properties — they come back undefined and
+     the arithmetic silently becomes NaN, which is exactly what it did the first
+     time this was written. Everything is taken against the panel's own top so
+     the numbers are panel-relative, the way the eye reads them. */
+  const pT=panelEl.getBoundingClientRect().top;
+  const g=grid.getBoundingClientRect(), pv=prev.getBoundingClientRect();
+  const above=g.top-pv.bottom;
+  const below=(pT+panelH)-g.bottom;
+  const shift=(below-above)/2;
+  if(shift<=0.5) return;                       // already even, to within half a pixel
+  grid.style.marginTop=(parseFloat(grid.style.marginTop||0)+shift).toFixed(1)+'px';
+}
+
 /* The control the panel holds. One per question TYPE, and the panel is what
    they have in common — see the .qopts rules for why the binary and the months
    are not wheels. Positioned in the panel's own cell module: the question takes
@@ -5328,6 +5488,9 @@ function monthRingMarkup(q,c,PH,W){
   const R=d/2, cur=picked(q.id);
   const fs=Q_HFS*c;                            // the name, inside its circle — the hint's size (14px)
   const ringFs=d*0.185*c;                      // the name, running round
+  /* The gap this leaves with is the question's Figma one; renderSnake then
+     SETTLES the grid down into the middle of the room the words really left —
+     see settleControl, and why it cannot be done from here. */
   let g='<svg viewBox="0 '+(top*c).toFixed(1)+' '+(W*c).toFixed(1)+' '+(gridH*c).toFixed(1)+'"'
       + ' class="mring" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
   q.options.forEach((m,k)=>{
@@ -5469,14 +5632,28 @@ function shapeDuoMarkup(q,c,PH,W){
    0-to-level change for the CSS transition to animate, whatever forced layout
    passes run in between. */
 const DENSITY_FILL={little:14, enough:52, plenty:100};   // fill level per side, in %
+/* Circle to circle, in cells — the landing drawing's 26/45. This is the number
+   Karin asked to HOLD while the circles grew, so it is the fixed side of the
+   arithmetic below and the diameter is what gives. It is stated here and
+   nowhere else; .qfill carries no gap of its own. */
+const DENSITY_GAP=0.578;
 function densityFillMarkup(q,c,PH,W){
   const rise=!!densityFillMarkup.rise;
-  /* THE SAME CIRCLE AS THE MONTH GRID, from the same function rather than a
-     size of this control's own — the answer circle is one mark across the
-     piece, and ringCircleD is the one place its diameter is decided. */
-  const d=(ringCircleD(W)*c).toFixed(1);
+  /* SOLVED FOR THE HUG, not taken from ringCircleD (Karin, 16 Aug: "make the
+     circles bigger but keep the spacing, reduce the horizontal padding").
+     ringCircleD sizes four circles across, so borrowing it for a THREE-option
+     row left ~0.97 of a cell of air at each end — more than twice Q_INSET — and
+     the row floated inside a panel whose every other child starts at the hug.
+     So: the row spans exactly the hugged width, the gap stays DENSITY_GAP, and
+     the diameter takes the rest. The circles now line up with the question's
+     own left and right edges, which is Q_INSET doing what it says it does.
+     The month grid keeps ringCircleD; this row is a different count, and one
+     count per width is what makes both of them land on the same hug. */
+  const n=q.options.length;
+  const d=(((W-2*Q_INSET)-(n-1)*DENSITY_GAP)/n*c).toFixed(1);
   /* a FLOW child, same as the shape control — gap only, no absolute box */
-  let s='<div class="qfill" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
+  let s='<div class="qfill" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px;'
+      + 'gap:'+(DENSITY_GAP*c).toFixed(1)+'px">';
   q.options.forEach(([k,label])=>{
     const on=String(picked(q.id))===String(k);
     const fill=DENSITY_FILL[k]||0;
