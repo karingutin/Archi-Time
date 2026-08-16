@@ -28,8 +28,8 @@ const left = phaseX + Math.round((wantX - phaseX) / cell) * cell;
 const top  = phaseY + Math.round((wantY - phaseY) / cell) * cell;
 ```
 
-See `placeChrome()` in [architecture-of-time.html](architecture-of-time.html:3507) for
-the reference implementation.
+See `placeChrome()` in [js/ui/40-dots.js](js/ui/40-dots.js:238) for the reference
+implementation.
 
 Rules that follow from it:
 
@@ -44,6 +44,21 @@ Rules that follow from it:
 
 When a design comes from Figma, convert its px measurements to cell counts first, then
 place. Do not reproduce the raw px offsets.
+
+## Where things live
+
+`architecture-of-time.html` is now a ~150-line shell: the `<head>`, the body markup, and
+an ordered list of `<link>` and `<script src>` tags. The code sits beside it:
+
+- `css/` — four files, `00-ground` → `30-questions`.
+- `js/` — `00-core.js` and `10-bank.js`, then `js/poster/` (one file per generated
+  layer), `js/ui/` (one file per control), `js/app/` (flow, drawing, format, export,
+  boot).
+
+**The numeric prefixes are the execution order.** These are classic scripts sharing one
+global scope, with no `defer` and no `async`, so the order of the tags in the shell is
+the order the code runs in. Adding a file means adding a tag in the right place; moving
+a tag moves the code. See [SPLIT_PLAN.md](SPLIT_PLAN.md) for how the split was made.
 
 ## Git checkpoints
 

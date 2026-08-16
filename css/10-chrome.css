@@ -1,0 +1,265 @@
+  /* ---- the KAIRO mark, top right ----
+     The five letters, each in one grid cell. The container's box is set to the
+     cluster's bounding box (placeLogo) so the dot field can reserve it; the
+     tiles are positioned inside it. White cells with black letters on the bare
+     ground; the R cell is the one filled cell — the interface red until a
+     colourway is chosen, then one of the chosen pair (paintLogo). */
+  #kairo{display:none;position:absolute;z-index:3;pointer-events:none}
+  #kairo .kt{position:absolute;display:flex;align-items:center;justify-content:center;
+             background:var(--fg);border:1px solid transparent;
+             font-family:var(--ui);font-weight:600;color:#FFFFFF;
+             text-transform:uppercase;line-height:1;letter-spacing:.01em;
+             transition:background .45s var(--ease),color .45s var(--ease)}
+  /* the filled letter keeps the same white glyph; only its background is the colour */
+  #kairo .kt.mark{color:#FFFFFF;border-color:transparent}
+  @media (prefers-reduced-motion:reduce){#kairo .kt{transition:none}}
+
+  /* ---- the format control, top right ----
+     Two grid cells square instead of the three the grey placeholder took, and
+     snapped to the same lines. The glyph inside is the poster's own outline at
+     its real ratio, so the control states the format rather than naming it. */
+  #fmtBtn{position:absolute;z-index:9;pointer-events:auto;cursor:pointer;
+          background:transparent;border:1px solid rgba(255,255,255,.28);padding:0;
+          display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+          transition:border-color .15s,background .15s}
+  #fmtBtn:hover,#fmtBtn[aria-expanded=true]{border-color:#fff;background:rgba(255,255,255,.07)}
+  #fmtBtn:focus-visible{outline:1px solid #fff;outline-offset:3px}
+  /* the glyph's own box animates with the same curve as the sheet, so pressing
+     a format shows the control and the poster arriving together */
+  #fmtBtn i{display:block;border:1.3px solid #fff;box-sizing:border-box;
+            transition:width var(--morph) var(--ease),
+                       height var(--morph) var(--ease)}
+  #fmtBtn b{font-family:var(--mono);font-weight:400;font-size:7.5px;letter-spacing:.1em;
+            color:rgba(255,255,255,.7);white-space:nowrap}
+
+  #fmtMenu{position:absolute;z-index:9;background:#080808;
+           border:1px solid rgba(255,255,255,.26);padding:5px 0;
+           opacity:0;visibility:hidden;transform:translateY(-4px);pointer-events:none;
+           transition:opacity .18s ease,transform .18s ease,visibility .18s}
+  #fmtMenu.open{opacity:1;visibility:visible;transform:none;pointer-events:auto}
+  #fmtMenu button{display:flex;align-items:center;gap:11px;width:100%;
+                  background:transparent;border:0;padding:8px 13px;cursor:pointer;
+                  text-align:left;color:#fff;transition:background .12s}
+  #fmtMenu button:hover{background:rgba(255,255,255,.10)}
+  #fmtMenu button:focus-visible{outline:1px solid #fff;outline-offset:-2px}
+  #fmtMenu button[aria-checked=true]{background:rgba(255,255,255,.06)}
+  /* the ratio glyph, sized by JS: a 22px box holding the format's outline */
+  #fmtMenu i{display:block;border:1.2px solid rgba(255,255,255,.85);box-sizing:border-box;flex:none}
+  #fmtMenu .gbox{width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex:none}
+  #fmtMenu .lbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;
+                text-transform:uppercase;flex:1;white-space:nowrap}
+  #fmtMenu .rat{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+                color:rgba(255,255,255,.55);flex:none}
+  #fmtMenu .use{font-family:var(--mono);font-size:8px;letter-spacing:.06em;
+                color:rgba(255,255,255,.34);display:block;margin-top:3px;text-transform:none}
+  #fmtMenu button[aria-checked=true] .rat{color:#fff}
+
+  /* The sheet. syncSheet writes its four lengths in one go, so they all change
+     at the same instant — and a transition on a length interpolates whatever
+     caused the change. That is the format morph: four lengths here, four more
+     on the bounding lines, one duration and one curve shared by all of them, so
+     they arrive together. No custom-property animation involved, which means it
+     behaves the same in every browser that can run the rest of this file. */
+  #frame{position:absolute;z-index:2;left:var(--sheet-x);top:var(--sheet-y);
+         width:var(--sheet-w);height:var(--sheet-h)}
+  /* Scoped to .morphing on purpose. The same four lengths also change when the
+     window is resized, and a resize must be instant — animating the sheet
+     while someone drags a window corner looks broken and lags the pointer. The
+     class is added only for the length of a format change. */
+  .world.morphing #frame{
+         transition:left var(--morph) var(--ease), top var(--morph) var(--ease),
+                    width var(--morph) var(--ease), height var(--morph) var(--ease)}
+
+  /* The single "create the poster" action. Centred under the sheet using the
+     same --sheet-x/-w/--cell variables #frame itself is built from, so it
+     tracks the sheet through every format and every viewport without its own
+     positioning logic. Hidden (not just disabled) until .ready — invisible
+     is what "revealed only at the end" means; a disabled button sitting there
+     the whole time would still be announcing the ending early. */
+  #mkPoster{position:absolute;z-index:7;
+    left:calc(var(--sheet-x) + var(--sheet-w) / 2);
+    top:calc(var(--sheet-y) + var(--sheet-h) + var(--cell) * 1.1);
+    transform:translateX(-50%);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    padding:12px 26px;border:1px solid #000;background:#000;color:#ECECEC;cursor:pointer;
+    opacity:0;visibility:hidden;pointer-events:none;
+    transition:opacity .3s ease,visibility .3s,background .15s,color .15s}
+  #mkPoster.ready{opacity:1;visibility:visible;pointer-events:auto}
+  #mkPoster:hover{background:transparent;color:#000}
+  #mkPoster:focus-visible{outline:1px solid #000;outline-offset:3px}
+
+  /* Two poster layers, dissolved into one another on a format change. Both are
+     stretched to fill the frame (preserveAspectRatio="none"), and the frame is
+     travelling between the two ratios: at the start the outgoing poster sits at
+     its own ratio undistorted, at the end the incoming one does, and the
+     dissolve covers the squash in between. That is what turns a resize into a
+     morph.
+
+     It is NOT a symmetrical crossfade, and that is the point. Fading one out
+     while fading the other in leaves both semi-transparent midway, so a
+     quarter of the black board shows through the pair and the poster visibly
+     dips in brightness halfway through every change — very obvious on a white
+     morning ground. Instead the outgoing layer holds full opacity underneath
+     while the incoming one fades in ON TOP of it, and is only dropped once it
+     is completely covered. Nothing is ever transparent, so nothing dims. */
+  .ply{position:absolute;inset:0;opacity:0;
+       transition:opacity var(--morph) var(--ease)}
+  .ply.live{opacity:1}
+  .ply:not(.live){pointer-events:none}   /* the idle buffer must not intercept hovers */
+  .ply svg{display:block;width:100%;height:100%}
+
+  /* HOVER NOTES: point at an answered layer and it stays lit while the rest of the
+     poster dims, and a personal line appears beside the sheet. */
+  .hl{cursor:pointer}
+  .art > *{transition:opacity .25s ease}
+  .art:has(.hl:hover) > *:not(.hl:hover){opacity:.12}
+
+  /* ENTRY ANIMATIONS: the first time a tool's layer lands on the sheet it plays a
+     one-shot entrance. markEntries() tags the layer .enter exactly once (the id is
+     remembered in `entered`), so slider re-renders and format morphs stay silent;
+     resetAll clears `entered` and re-arms it. The global prefers-reduced-motion
+     rule near the end already forces animation:none, so a reduced-motion visitor
+     just gets the finished mark — no per-animation guard needed here.
+
+     THE SNAKE (Q4/febdays): its beads unspool head-to-tail. Every bead part carries
+     class .sbead and a --bi (its 0-based order); the layer carries --sstep (the
+     per-bead delay, sized in JS so ~all 28-31 beads land inside ~0.8s). Each bead
+     appears WHOLE at full size — a plain fade, no scale-up — so the snake assembles
+     one complete circle after another (Karin: scaling small->big did not suit it).
+     The explicit animation-delay sits AFTER the animation shorthand on purpose — the
+     shorthand resets delay to 0, so the override has to follow it. */
+  @keyframes snakeBeadIn{from{opacity:0}to{opacity:1}}
+  .hl.enter[data-q="febdays"] .sbead{
+    animation:snakeBeadIn .42s var(--eo) both;
+    animation-delay:calc(var(--bi) * var(--sstep,15ms))}
+
+  /* THE NODE (Q2/alarms): the centre square pops first, then the rays shoot outward
+     one by one (a stroke draw-on — --rl is each ray's own length) and each blue tip
+     pops as its ray lands. --nstep (set in JS off the ray count) keeps the whole fan
+     inside ~0.3s however many alarms there are. Same fill-box trick so the square and
+     tips scale from their own centres, not the SVG origin. */
+  @keyframes nodePop{from{opacity:0;transform:scale(0)}to{opacity:1;transform:none}}
+  @keyframes nodeRay{from{stroke-dashoffset:var(--rl)}to{stroke-dashoffset:0}}
+  /* THE BASE GRID (shape + density): on first appearance the output RISES from
+     the bottom of the sheet to the top — a clip that fills upward, so the lines
+     read as coming up from below rather than blooming from the centre. */
+  .hl.enter[data-q="basegrid"]{animation:gridRise .95s var(--eo) both}
+  @keyframes gridRise{from{clip-path:inset(100% 0 0 0)}to{clip-path:inset(0 0 0 0)}}
+  .hl.enter[data-q="alarms"] .nsq{transform-box:fill-box;transform-origin:center;
+    animation:nodePop .30s var(--eo) both}
+  .hl.enter[data-q="alarms"] .nray{stroke-dasharray:var(--rl);
+    animation:nodeRay .36s var(--eo) both;
+    animation-delay:calc(.10s + var(--ri) * var(--nstep,40ms))}
+  .hl.enter[data-q="alarms"] .nell{transform-box:fill-box;transform-origin:center;
+    animation:nodePop .26s var(--eo) both;
+    animation-delay:calc(.30s + var(--ri) * var(--nstep,40ms))}
+  /* THE RING BLOCK (Q/vacations): the corner triangle RISES onto the canvas first,
+     travelling in from beyond the sheet's extreme top-right corner (--rtx,--rty is the
+     trim corner the block hangs flush to; --rtdx,--rtdy is the off-canvas start it
+     slides from), and then the rings BUD — every one of them
+     is tangent to the outer ring at one point (--rpx,--rpy, the middle-right), so
+     scaling each about THAT point holds the tangency through the whole entrance
+     and they read as growing out of it, outer first. transform-box:view-box puts
+     the origin in the sheet's own units, which is what those two vars carry.
+
+     A COUNT CHANGE is the same move under a different driver: startRingsMorph
+     scales the very same groups about the very same point from JS, so a ring
+     gained grows out of it and a ring lost shrinks back into it. Nothing here
+     fights that — the .enter class is off by then. */
+  @keyframes ringBud{from{opacity:0;transform:scale(0)}to{opacity:1;transform:none}}
+  /* the triangle RISES onto the canvas: it starts one triangle-length up-and-right of
+     its resting spot (--rtdx,--rtdy, so it is fully off the top-right corner) and
+     slides down-left into place. transform-box:view-box keeps the px offsets in the
+     sheet's own units. */
+  @keyframes ringTriIn{from{opacity:0;transform:translate(var(--rtdx),var(--rtdy))}to{opacity:1;transform:none}}
+  .hl.enter[data-q="vacations"] .rtri{transform-box:view-box;
+    animation:ringTriIn .5s var(--eo) both}
+  .hl.enter[data-q="vacations"] .rring{transform-box:view-box;
+    transform-origin:var(--rpx) var(--rpy);
+    animation:ringBud .52s var(--eo) both;
+    animation-delay:calc(.14s + var(--ri) * var(--rstep,90ms))}
+
+  /* THE MONTH SILHOUETTE (Q3): on FIRST appearance it grows from the sheet
+     centre — a smooth scale of the whole layer group about the viewBox centre,
+     the same move as the base grid but keyed to the sheet centre rather than the
+     group's own box. A month CHANGE keeps the raster re-grow (startMonthGrow);
+     .enter is off by then, so this never fights it. */
+  .hl.enter[data-q="month"]{transform-box:view-box;transform-origin:50% 50%;
+    animation:monthGrow .72s var(--eo) both}
+  @keyframes monthGrow{from{transform:scale(.04)}to{transform:scale(1)}}
+
+  /* THE DECADES BRICK BAND (Q7): on first appearance the checkerboard lays in
+     column by column from the left, each brick growing up from its own foot —
+     the piece's whole-cell brick language. --cstep (set on the group off the
+     column count) keeps the whole band inside ~0.8s however many decades. */
+  @keyframes brickLay{from{opacity:0;transform:scaleY(0)}to{opacity:1;transform:none}}
+  .hl.enter[data-q="decades"] .brick{transform-box:fill-box;transform-origin:bottom;
+    animation:brickLay .42s var(--eo) both;
+    animation-delay:calc(var(--ci) * var(--cstep,40ms))}
+
+  /* THE LATTICE (Q8/sixweek): on FIRST appearance only, every cell pops in as a
+     true hard cut (no fade) — each cell carries its own reveal delay (--cd),
+     baked in JS as an eased distance-from-top-left so the population reads as
+     one diagonal wavefront sweeping down-right, easing out as it advances. A
+     steps(1,end) animation holds each cell at opacity:0 for its entire duration
+     and then snaps straight to opaque — no interpolation, matching the piece's
+     no-fade language. Only ever runs once: any later paint (a bar drag, a
+     revisit) uses the batched static render, which has no .lcell elements to
+     animate at all.
+
+     The duration used to be 0.01s. steps(1,end) only ever shows two states, so
+     that read as instant either way — but a 10ms window is short enough that
+     the main-thread work landing right after 257 cells are inserted
+     (addHitRects' getBBox pass, markEntries' classList pass) could eat the
+     whole window before the browser sampled it, and a cell whose step got
+     stepped over that way never recovers: fill-mode:both freezes it at
+     opacity:0 forever. Karin found 9 cells permanently missing after the
+     sweep finished. 240ms is long enough that no plausible stall skips it
+     outright, and JS backs the per-cell delay off by the same 240ms so the
+     sweep's overall timing and easing feel unchanged. */
+  @keyframes latticeCellIn{from{opacity:0}to{opacity:1}}
+  .hl.enter[data-q="sixweek"] .lcell{
+    opacity:0;
+    animation:latticeCellIn .24s steps(1,end) both;
+    animation-delay:var(--cd)}
+
+  /* overflow:hidden because the box is now a FIXED six by three cells (see
+     NOTE_ROWS) rather than a box that grew to its text. A read that runs long
+     is cut off at the card's foot, which is why the copy banks carry a
+     three-line budget as a rule rather than as advice. */
+  #hoverCard{position:fixed;z-index:20;background:var(--q-panel);
+             font-family:var(--q-face);overflow:hidden;
+             opacity:0;transform:translateY(4px);transition:opacity .2s var(--ease),transform .2s var(--ease);
+             pointer-events:none}
+  #hoverCard.on{opacity:1;transform:none}
+  #hoverCard .hc-t{color:var(--q-text);margin:0;font-weight:700;line-height:1.1}
+  #hoverCard .hc-b{color:var(--q-text);margin:0;font-weight:400}
+  /* the background-grid reading — the grid's own answers, set quieter and apart */
+  #hoverCard .hc-g{color:#9A9A9A;margin:0;font-weight:400}
+
+  /* No frame: these ARE the four grid lines that fall on the sheet's edges,
+     drawn brighter than the rest of the grid. Add class "edge" to .sheet-lines
+     to clip them to the sheet instead of running the full width and height. */
+  /* These live on the world, not on the viewport-sized stage, so they run the
+     world's full extent — right through the overscan — and still reach the
+     screen edge however far the board has panned. */
+  .sheet-lines{position:absolute;inset:0;z-index:3;pointer-events:none}
+  .sheet-lines i{position:absolute;background:var(--sheetline)}
+  /* the four lines travel on the same duration and curve as the sheet's own
+     box, so the frame and its edges can never arrive at different moments */
+  .world.morphing .sheet-lines i{
+                 transition:left var(--morph) var(--ease), top var(--morph) var(--ease),
+                            right var(--morph) var(--ease), bottom var(--morph) var(--ease)}
+  .sheet-lines .v{top:0;bottom:0;width:1px}
+  .sheet-lines .h{left:0;right:0;height:1px}
+  .sheet-lines .v1{left:calc(var(--sheet-x) + var(--over))}
+  .sheet-lines .v2{left:calc(var(--sheet-x) + var(--sheet-w) + var(--over))}
+  .sheet-lines .h1{top:calc(var(--sheet-y) + var(--over))}
+  .sheet-lines .h2{top:calc(var(--sheet-y) + var(--sheet-h) + var(--over))}
+  /* add class "edge" to clip them to the sheet instead of running full length */
+  .sheet-lines.edge .v{top:calc(var(--sheet-y) + var(--over));
+                       bottom:calc(100dvh - var(--sheet-y) - var(--sheet-h) + var(--over))}
+  .sheet-lines.edge .h{left:calc(var(--sheet-x) + var(--over));
+                       right:calc(100vw - var(--sheet-x) - var(--sheet-w) + var(--over))}
+  #frame svg{display:block;width:100%;height:100%}
+
