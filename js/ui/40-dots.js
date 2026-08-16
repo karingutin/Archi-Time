@@ -18,7 +18,6 @@ const statusBar=document.getElementById('status');
 const fmtBtn=document.getElementById('fmtBtn');
 const fmtMenu=document.getElementById('fmtMenu');
 const resetBtn=document.getElementById('reset');
-const mkBtn=document.getElementById('mkPoster');
 const logoEl=document.getElementById('kairo');
 const landing=document.getElementById('landing');
 const landingBody=document.getElementById('landingBody');
@@ -126,8 +125,9 @@ const NOTE_ROWS=3;
    find 4px when a card gets shorter; the hug is not, because it is shared. */
 const NOTE_TGAP=0.15;
 const POSTER_SHIFT_CELLS=5;   // right of centre: questions on the left, notes on the right
-/* QUESTION_LEFT_CELLS is the PANEL's inset — see the comment on `left` in
-   snakeBand for how the marker's column is derived from it.
+/* QUESTION_LEFT_CELLS is the PANEL's inset ON THE HOME LANE — see the comment
+   on `home` in snakeBand for how the marker's column is derived from it, and
+   the note on SNAKE.lanes for why there is a second lane one column further in.
    FIVE, not SIDE_CELLS (Karin, 16 Aug: "questions should move 2 columns to the
    right"). It no longer tracks the note's inset on the opposite edge, so it is
    written as its own number rather than as SIDE_CELLS: the two were equal
@@ -165,7 +165,14 @@ const cardWidth=()=>Math.round(Math.min(400, 0.88*window.innerWidth));
    controls — below it the card is doing nobody any favours. */
 const CARD_MIN_W=248;
 
-let DOTS=[], openQ=null, pinnedQ=null, finished=false, introOpen=false, rafId=null;
+let DOTS=[], openQ=null, pinnedQ=null, introOpen=false, rafId=null;
+/* THE POSTER IS MADE. Set by the tenth question's Create and cleared by Back or
+   Reset. It is the one piece of state the whole ending hangs off: the question
+   system draws the way out instead of a question (see renderSnake), and the
+   board's ground inverts (body.made — see the rule at the foot of 00-ground).
+   The poster itself does not read it at all, which is the point: nothing about
+   the sheet changes when it is made, only what is around it. */
+let posterDone=false;
 /* The card's laid-out box, recorded by placeCard. Do NOT measure the card with
    getBoundingClientRect for this: the open animation scales it from 0.38, so a
    measurement taken mid-animation reports a box far smaller than the real one,
@@ -210,7 +217,7 @@ const forked=()=>ASKED.filter(q=>isDone(q.id)).length>=CONFIG.LINEAR_LEAD
 /* the fixed corner squares paint above the board, so on the strict pass the
    card must stay out from under them too */
 function chromeBoxes(){
-  return [fmtBtn,fmtMenu,statusBar,resetBtn,mkBtn,logoEl].filter(Boolean)
+  return [fmtBtn,fmtMenu,statusBar,resetBtn,logoEl].filter(Boolean)
          .map(el=>el.getBoundingClientRect()).filter(b=>b.width>0);
 }
 function fitAt(d,cw,ch,vw,vh,f,mayOverlapSheet,boxes){
@@ -260,82 +267,100 @@ function placeChrome(){
 }
 
 /* ---------------------------------------------------------------------
-   THE KAIRO MARK. The name's five letters sit in grid cells in the
-   top-right corner, in a composition chosen at random each load. The R cell
-   is always the filled one: the interface red until a colourway is picked,
-   then one of the two chosen colours. Snapped to the grid exactly as the old
-   corner placeholder was, and its box is reserved so no dot lands under it.
+   THE KAIRO MARK — three cells in one row, standing over the head of the
+   question walk.
+
+   IT USED TO BE FIVE CELLS, one letter each, in one of eight small
+   compositions picked at random every load, hung off the sheet's top-right
+   corner — and it was never once seen, because #kairo has been display:none
+   since it was written and nothing ever turned it on. So none of that is
+   being preserved here: the shape table, the random draw and the per-letter
+   tiles are gone with it, and what replaces them is what was asked for
+   (Karin, 17 Aug) — three cells wide, one row tall, above the questions.
+
+   THE WORD RUNS ACROSS ALL THREE CELLS rather than being cut into them. At
+   five letters over three cells there is no letter-per-cell reading to be
+   had, so the cells are the GROUND and the name is set across them in one
+   piece — which is still the mark's own idea (the name living in the
+   lattice), just at a coarser grain.
+
+   ONE COLOUR ACROSS ALL THREE CELLS (Karin, 17 Aug). The mark used to have a
+   single accent cell carrying the poster's chosen colour — the old R cell —
+   and that idea does not survive the move to a word set across the block: the
+   name would run off an ink ground onto a coloured one halfway through, which
+   reads as a mistake rather than as an accent, and half the colourway pairs
+   are pastels that white letters simply disappear into. So the three cells are
+   one flat ground, and the tie to the poster's colour is carried by the poster.
    --------------------------------------------------------------------- */
-const LOGO_INK='#F5242B';                 // the interface red, before a colourway is chosen
+/* THE NAME, ONCE. The board's mark sets it as a word (LOGO_WORD below) and the
+   opening screen sets it as five separate 3x3 letter cells (buildHeroLogo), so
+   the letters have to stay a list — joining them here rather than writing the
+   string twice is what stops the two marks from ever disagreeing about the
+   name. Removing this list is what broke the opening screen the first time the
+   board's mark was rewritten. */
 const LOGO_LETTERS=['K','A','I','R','O'];
-const R_INDEX=3;                          // R is always the filled cell
-/* Each shape lists the five letters as [col,row] cells in reading order
-   (K,A,I,R,O). Kept contiguous and inside a small box so the cluster always
-   reads as one mark; picked at random by buildLogo. */
-const LOGO_SHAPES=[
-  [[0,0],[0,1],[0,2],[0,3],[0,4]],        // a single column
-  [[0,0],[1,0],[2,0],[3,0],[4,0]],        // a single row
-  [[0,0],[1,0],[0,1],[1,1],[0,2]],        // two wide, three tall
-  [[0,0],[1,0],[2,0],[2,1],[3,0]],        // a row with R dropped below the I
-  [[0,0],[0,1],[0,2],[1,2],[2,2]],        // an L
-  [[0,0],[1,0],[1,1],[2,1],[2,2]],        // a staircase
-  [[0,0],[1,0],[2,0],[0,1],[1,1]],        // three over two
-  [[1,0],[0,1],[1,1],[2,1],[1,2]]         // a plus
-];
-let logoShape=null, logoTiles=[];
+const LOGO_WORD=LOGO_LETTERS.join('');
+const LOGO_CELLS=3;                       // 3 x 1, per the mark on Karin's screenshot
+/* Two rows above the first question marker, and one column left of it, so the
+   three cells straddle the walk's own column rather than hanging beside it —
+   that is where the mark was drawn. Both are clamped in placeLogo against the
+   top and left edges of the screen. */
+const LOGO_ROWS_ABOVE=2, LOGO_COL_LEFT=1;
+let logoTiles=[], logoWord=null;
 
 function buildLogo(){
-  logoShape=LOGO_SHAPES[Math.floor(Math.random()*LOGO_SHAPES.length)];
   logoEl.innerHTML='';
-  logoTiles=LOGO_LETTERS.map((ch,n)=>{
+  logoTiles=[];
+  for(let n=0;n<LOGO_CELLS;n++){
     const t=document.createElement('div');
-    t.className='kt'+(n===R_INDEX?' mark':'');
-    t.textContent=ch;
+    t.className='kt';
     logoEl.appendChild(t);
-    return t;
-  });
+    logoTiles.push(t);
+  }
+  /* the name sits ON the cells, in its own element spanning the whole box, so
+     the letters are never broken by a cell edge and the tiles stay pure ground */
+  logoWord=document.createElement('div');
+  logoWord.className='kw';
+  logoWord.textContent=LOGO_WORD;
+  logoEl.appendChild(logoWord);
 }
 
 function placeLogo(){
-  if(!logoShape) return;
-  const cell=cellSize();
-  const cols=Math.max(...logoShape.map(c=>c[0]))+1;
-  const rows=Math.max(...logoShape.map(c=>c[1]))+1;
-  const boxW=cols*cell, boxH=rows*cell;
-  /* THE MARK IS ATTACHED TO THE POSTER: the K sits in the cell just right of the
-     sheet's top-right corner, so the cluster hugs the sheet and pans/tilts with it
-     (both are siblings in .stagebox, so the sheet's own pixel rect maps straight to
-     the mark's box). K is letter 0 and always on the top row. */
-  const sr=sheetRect();
-  const [kc]=logoShape[0];                    // K's column within the cluster
-  logoEl.style.left=(sr.right - kc*cell)+'px';
-  logoEl.style.top=sr.top+'px';
-  logoEl.style.width=boxW+'px';
-  logoEl.style.height=boxH+'px';
+  if(!logoTiles.length) return;
+  /* NOTHING BEFORE THE BOARD. The mark belongs to the board, not to the opening
+     screen — which has a KAIRO of its own, at its own scale (see .hero-kairo).
+     Two of them on one screen would be one too many. This also covers the way
+     BACK (see backToStart): its wipe puts S.baseDone down again, so the board's
+     mark leaves the tab order with the board itself. */
+  if(!S.baseDone){ logoEl.style.display='none'; return; }
+  logoEl.style.display='block';
+  const cell=cellSize(), o=gridOrigin(), B=snakeBand();
+  /* THE SAME CELLS THE SNAKE IS ON, so the mark is snapped by construction: the
+     band's own columns and rows are grid coordinates from the origin, which is
+     what every other part of the question system is placed with. No second
+     phase calculation to drift out of step with the first.
+     Clamped at both edges: -B.halfW and -B.halfH are the first full column and
+     row on the screen, so a short or narrow window slides the mark back inside
+     rather than cutting it off. */
+  const col=Math.max(-B.halfW, B.iMin-LOGO_COL_LEFT);
+  const row=Math.max(-B.halfH, B.jMin-LOGO_ROWS_ABOVE);
+  logoEl.style.left=(o.x+col*cell)+'px';
+  logoEl.style.top=(o.y+row*cell)+'px';
+  logoEl.style.width=(LOGO_CELLS*cell)+'px';
+  logoEl.style.height=cell+'px';
   logoTiles.forEach((t,n)=>{
-    const [c,r]=logoShape[n];
-    t.style.left=(c*cell)+'px';
-    t.style.top=(r*cell)+'px';
+    t.style.left=(n*cell)+'px';
+    t.style.top='0px';
     t.style.width=cell+'px';
     t.style.height=cell+'px';
-    /* the letter matches the question numbers (dial labels are 0.382 of a cell) */
-    t.style.fontSize=Math.round(cell*0.382)+'px';
   });
-  paintLogo();
-}
-
-/* The one filled cell. Before a colourway is picked it is the interface red;
-   once picked it takes one of the two chosen colours — which one does not
-   matter, so it is fixed by the session seed and simply differs run to run. */
-function paintLogo(){
-  const mark=logoTiles[R_INDEX];
-  if(!mark) return;
-  let col=LOGO_INK;
-  if(isChosen('colorway')){
-    const pair=currentColorwayPair();
-    if(pair) col=pair[(S.seed>>>0)&1];
+  if(logoWord){
+    /* sized to fill the three cells with a cell's worth of air across the pair
+       of ends: five letters at .52 of a cell plus four gaps of .10 comes to
+       about 2.2 cells inside a box of 3 */
+    logoWord.style.fontSize=(cell*0.52).toFixed(1)+'px';
+    logoWord.style.letterSpacing=(cell*0.10).toFixed(2)+'px';
   }
-  mark.style.background=col;
 }
 
 /* ---------------------------------------------------------------------
@@ -391,10 +416,6 @@ function computeDots(){
        Hidden (display:none), their rect collapses to 0,0,0,0 and padding it
        would reserve a stray box at the origin for nothing. */
     ...(CONFIG.FORMAT_SWITCHER ? [pad(fmtBtn), pad(fmtMenu)] : []),
-    /* mkPoster keeps a real, positioned box even while invisible (visibility:
-       hidden, not display:none — see its CSS), so this is always meaningful:
-       a dot can't end up hidden under it the instant it becomes .ready. */
-    pad(mkBtn),
     pad(logoEl),                                                    // the KAIRO mark, top right
     {l:0, r:13*cell, t:vh-3.2*cell, b:vh},                          // status strip
     {l:vw-7*cell, r:vw, t:vh-3.2*cell, b:vh}                        // reset

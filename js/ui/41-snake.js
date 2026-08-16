@@ -100,7 +100,26 @@ const SNAKE={
      Two, not three (Karin, 16 Aug): "the question numbers should start one row
      upwards" — the whole run steps up a cell, markers, panels and Next with it,
      since every part of the figure hangs off the first marker's row. */
-  top:2
+  top:2,
+  /* HOW MANY COLUMNS THE WALK USES. Two, and the second one is what makes this
+     a snake rather than a list: every question steps one cell diagonally from
+     the last, so the trail of answered markers zigzags down the board instead
+     of stacking in a single file.
+
+     THE WHOLE FIGURE MOVES, not just the marker (Karin, 17 Aug). Every part of
+     the figure is an offset from the marker's own cell, so the counter, the
+     panel and Next all step across with it and the corner rule holds on every
+     single question — the panel always hangs off the counter's bottom-right
+     corner, never merely under it. The price is stated plainly because it is
+     the rule this reverses: the panel's left edge is NO LONGER a fixed inset
+     from the screen edge, it alternates between QUESTION_LEFT_CELLS and one
+     column further in. That was the 16 Aug rule, and this is the 17 Aug one;
+     both were asked for, and the corner rule won.
+
+     One is a straight column, which is what this was between the two dates.
+     Three or more would need a triangle wave in snakeCell rather than the
+     modulo it uses — with two lanes the two are the same walk. */
+  lanes:2
 };
 
 /* The free band, in grid cells from the origin. Two numbers per axis: the
@@ -127,41 +146,46 @@ function snakeBand(){
   /* The deepest question's foot, measured rather than assumed — see snakeReach. */
   const need=snakeReach();
   const jMin=Math.min(-halfH+SNAKE.top, halfH-need);
-  /* THE MARKER'S COLUMN IS FIXED — no more two-lane zigzag. A shifting marker
-     column shifted the PANEL's column with it (panel.c = marker.c+panel.dx),
-     so "3 cells from the edge" was only ever true on half the questions; Karin
-     asked for it to hold on ALL of them, every time, matching the hover note's
-     fixed inset on the other side. QUESTION_LEFT_CELLS is the PANEL's own inset
-     now, so the marker sits panel.dx cells further in, at
-     QUESTION_LEFT_CELLS-SNAKE.panel.dx from the edge — one constant column,
-     not a range, so iMin and iMax are the same cell. Still clamped against the
-     poster (Math.min with the reach-based bound) for the rare narrow window
-     where even this one column would collide. */
-  const left=Math.min(-halfW+QUESTION_LEFT_CELLS-SNAKE.panel.dx, iMax);
+  /* THE WALK'S LANES. QUESTION_LEFT_CELLS sets the PANEL's inset on the HOME
+     lane, so the home marker sits panel.dx cells further in, at
+     QUESTION_LEFT_CELLS-SNAKE.panel.dx from the screen edge; the other lanes
+     step in from there, one column each (see SNAKE.lanes).
+
+     THE BOUND IS ON THE LAST LANE, NOT THE FIRST, and that is the one thing
+     that can go wrong here. iMax is the rightmost column a whole figure still
+     fits in — the poster is at uL and the figure reaches spanW past its own
+     marker — so what has to clear is the DEEPEST lane, home + lanes - 1. Bound
+     the home column instead and the far lane walks straight into the sheet.
+     On a window too narrow even for that, the whole run slides left rather than
+     dropping a lane: it keeps the shape and loses the margin, which is the way
+     round that stays legible. */
+  const wide=SNAKE.lanes-1;
+  const home=Math.min(-halfW+QUESTION_LEFT_CELLS-SNAKE.panel.dx, iMax-wide);
   return {
-    iMin:left, iMax:left,
+    iMin:home, iMax:home+wide,
     jMin, jMax:halfH-1,
     uL, halfW, halfH, cell
   };
 }
 
-/* LENGTHWISE — the snake descends. One row down per question, straight down a
-   single fixed column (see the note on `left` in snakeBand) rather than
-   turning back and forth across a few — the run used to zigzag between two
-   columns, but that dragged the PANEL's left edge with it (panel.c is the
-   marker's column plus SNAKE.panel.dx), breaking the fixed 3-cell margin Karin
-   wants on every question, not just every other one. Running lengthwise still
-   spends the band on the FIGURE and the screen's height on the SEQUENCE, which
-   is the way round that fits — the figure gets the same fixed columns at every
-   question, so the panel always hangs off its own marker's corner. */
+/* LENGTHWISE, AND ACROSS. The snake descends one row per question and steps one
+   column sideways with it, so consecutive markers are diagonal neighbours and
+   the trail of them zigzags — which is the entire reason this is called a
+   snake and not a list. It ran straight down a single column between 16 and 17
+   Aug, for the margin reason set out on SNAKE.lanes.
+
+   The sequence still spends the screen's HEIGHT, not its width: the lanes are a
+   fixed couple of columns and the run is as long as there are questions. That
+   is the way round that fits, since the clear band beside the poster affords
+   thirteen columns of figure and barely one to spare. */
 function snakeCell(n){
   const B=snakeBand();
-  /* ONE column now, not two alternating — see the note on `left` in snakeBand.
-     Every marker sits in the same column, one row further down than the last;
-     the panel it opens still reads as a diagonal step off that column because
-     of SNAKE.panel's own (dx:1, dy:1) offset, but the column itself no longer
-     drifts the panel's left edge off Karin's fixed 3-cell margin. */
-  return {i:B.iMin, j:B.jMin+n};
+  /* Modulo, not a bounced triangle wave: at two lanes 0,1,0,1 IS the zigzag,
+     and a wave would be code written for a third lane that does not exist.
+     Guarded anyway — a band too narrow for two collapses iMax onto iMin, and
+     the walk quietly goes back to a single file rather than dividing by zero. */
+  const lanes=B.iMax-B.iMin+1;
+  return {i:B.iMin + (lanes>1 ? n%lanes : 0), j:B.jMin+n};
 }
 
 /* The four rects of the figure, given a marker cell and which way it opens.
@@ -377,15 +401,55 @@ function snakeReach(){
    one press that makes the poster instead of walking to the next question, and
    a two-cell box could not hold the word at the button's own size without it
    crowding both edges. Every other question keeps SNAKE.save.w. */
+/* WHICH QUESTION ENDS THE ASKING. One predicate, because four separate things
+   key off it — the button's width, its word, its size, and the fact that
+   pressing it makes the poster rather than walking on (see the .qsave branch in
+   the qsys click handler) — and they must not be able to disagree about which
+   question that is. */
+const isCreateQ=q=>!!q && q.id==='colorway';
 const SAVE_W_ID={colorway:3};
 const saveW=q=>(q && SAVE_W_ID[q.id]) || SNAKE.save.w;
 /* and the word on it, for the same reason and by the same key */
-const saveLabel=q=>(q && q.id==='colorway') ? 'Create' : 'Next';
+const saveLabel=q=>isCreateQ(q) ? 'Create' : 'Next';
 /* and the size it is set at. 0.26 of a cell is the walking size — it belongs to
    a button you press nine times without looking at it. The tenth press is the
    one that makes the poster, and it is now set a third larger (Karin, 16 Aug),
    which is also what the 3-cell box was widened to hold. */
-const saveFS=q=>(q && q.id==='colorway') ? 0.34 : 0.26;
+const saveFS=q=>isCreateQ(q) ? 0.34 : 0.26;
+
+/* ---------------------------------------------------------------------
+   THE WAY OUT, once the poster is made.
+
+   Four boxes standing on THE LAST QUESTION'S OWN CORNER — the column and the
+   row where the tenth panel's top-left sat, taken from snakeFigure itself
+   rather than worked out again here, so the two can never disagree. That is
+   the corner the eye is already on when Create is pressed: the way out
+   arrives where the question left off, not back at the top of the run
+   (Karin, 16 Aug — it started on question one's row and read as a jump).
+
+   Five cells by one, because "SAVE AS PNG" is eleven characters at the
+   Create button's own size (saveFS's 0.34) and a four-cell box crowds both
+   ends of it. One clear row between each, so four cells on the inverted
+   ground read as four separate presses rather than one block with three
+   words in it.
+   --------------------------------------------------------------------- */
+const OUT_W=5;
+const OUT_ACTS=[{act:'png',  label:'Save as PNG'},
+                {act:'jpg',  label:'Save as JPG'},
+                {act:'svg',  label:'Save as SVG'},
+                {act:'back', label:'Back'}];
+/* rows from the first box's top to the last one's foot: three clear rows
+   between four boxes, plus the boxes themselves */
+const OUT_ROWS=(OUT_ACTS.length-1)*2+1;
+function finishFigure(){
+  const B=snakeBand();
+  const F=snakeFigure(Math.max(0,ASKED.length-1));
+  /* never off the bottom: on a short window the last question's panel can sit
+     low enough that four boxes below it would not fit, and then the run starts
+     as far down as it can while keeping Back on the screen */
+  const r=Math.min(F.panel.r, B.halfH-OUT_ROWS);
+  return OUT_ACTS.map((o,n)=>({...o, box:{c:F.panel.c, r:r+n*2, w:OUT_W, h:1}}));
+}
 
 function snakeParts(i,j,sx,sy){
   const PH=snakeParts.h||6, PW=snakeParts.w||SNAKE.panel.w;

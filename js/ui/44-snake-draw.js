@@ -10,6 +10,10 @@
    openQuestion(), which draws the OLD floating card, so a revisited question
    appeared in the previous design's clothes. The board must never call that. */
 let snakeAt=null;
+/* A one-shot delay in front of the next arrival stagger, in ms. Zero almost
+   always; set to the flip's length by hideFinish so the questions wait for the
+   ground to come back before they cut in. See the note where it is consumed. */
+let snakeLead=0;
 function snakeIndex(){
   const first=ASKED.findIndex(q=>!isDone(q.id));
   if(snakeAt!=null && snakeAt>=0 && snakeAt<ASKED.length) return snakeAt;
@@ -19,6 +23,11 @@ const snakeQ=()=>{ const i=snakeIndex(); return i<0 ? null : ASKED[i]; };
 
 function renderSnake(){
   if(!S.baseDone){ qsys.innerHTML=''; return; }
+  /* THE ASKING IS OVER. The whole run goes — trail, marker, counter, panel and
+     Create — and the way out stands in its place. Everything the question
+     system draws lives in this one element, so taking the questions away is
+     one branch rather than ten things to hide. */
+  if(posterDone){ renderFinish(); return; }
   const c=cellSize();
   const cur=snakeIndex();
   let html='';
@@ -166,7 +175,13 @@ function renderSnake(){
       if(parts[k] && parts[k].isConnected) parts[k].style.visibility='';
       renderSnake.t=setTimeout(()=>show(k+1), HERO_BEAT);
     };
-    show(0);
+    /* normally none — a question follows the one before it straight away. The
+       one exception is coming BACK from the ending (see hideFinish), where the
+       ground is still dark for the length of the flip and a black marker and a
+       black Create would arrive into it invisible. Consumed here, so it can
+       never leak into the next question's arrival. */
+    const lead=snakeLead; snakeLead=0;
+    if(lead) renderSnake.t=setTimeout(()=>show(0), lead); else show(0);
   }
 
   /* EVERY question opens in the panel now — the old floating card is no longer
@@ -177,6 +192,59 @@ function renderSnake(){
   S.reached[q.id]=true;
   /* only the scale-shaped questions open on a value — see needsPick */
   if(!needsPick(q) && S.answers[q.id]===undefined) S.answers[q.id]=q.default;
+}
+
+/* =====================================================================
+   THE WAY OUT. Three ways to keep the poster and one way back, standing on
+   the cells the questions stood on (see finishFigure for the geometry).
+
+   It is drawn by the same function that drew the questions, into the same
+   element, on the same trickle-down beat — because it is the same figure
+   walking one step further, not a different screen. Back is set in the
+   Reset control's own clothes rather than as a fourth white cell: it is the
+   one of the four that undoes something, and it should not look like a way
+   to keep the poster.
+   ===================================================================== */
+function renderFinish(){
+  const c=cellSize();
+  const html=finishFigure().map(o=>{
+    const box=cssBox(cellBox(o.box));
+    if(o.act==='back')
+      return '<button type="button" class="qback" data-act="back"'
+           + ' style="'+box+'"><span>'+o.label+'</span></button>';
+    return '<button type="button" class="qout" data-act="'+o.act+'"'
+         + ' style="'+box+';font-size:'+(0.34*c).toFixed(1)+'px'
+         + ';letter-spacing:'+(0.03*c).toFixed(2)+'px">'+o.label+'</button>';
+  }).join('');
+  qsys.innerHTML=html;
+
+  /* the same stagger the questions arrive on, and only on ARRIVAL — a resize
+     re-places these boxes and must not replay it.
+
+     IT WAITS FOR THE BOARD TO TURN OVER. These cells are the panel's white on
+     a ground that is still the panel's white for the length of the flip, so
+     arriving on the beat meant arriving invisibly and then being revealed by
+     the ground going dark underneath them — which reads as the buttons fading
+     in badly rather than as the board turning. So: the questions leave, the
+     ground goes to its negative, and only then does the way out cut in, one
+     box at a time. Three separate events in the order they should be read. */
+  if(!renderFinish.shown){
+    renderFinish.shown=true;
+    const parts=[...qsys.children];
+    clearTimeout(renderSnake.t);
+    parts.forEach(el=>{ el.style.visibility='hidden'; });
+    const show=k=>{
+      if(k>=parts.length) return;
+      if(parts[k] && parts[k].isConnected) parts[k].style.visibility='';
+      renderSnake.t=setTimeout(()=>show(k+1), HERO_BEAT);
+    };
+    /* reduced motion has no flip to wait for — the CSS forces every transition
+       off, so the ground is already dark and the wait would be dead time */
+    renderSnake.t=setTimeout(()=>show(0),
+      (reduceMotion && reduceMotion()) ? 0 : FLIP_MS);
+  }
+  /* the questions have to arrive again if they ever come back */
+  renderSnake.last=null;
 }
 
 /* WHICH CONTROLS SETTLE, by question id. Not a blanket rule and not by control

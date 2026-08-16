@@ -28,6 +28,21 @@ function syncSheet(){
   root.style.setProperty('--sheet-h', F.rows*c+'px');
   root.style.setProperty('--sheet-x', (o.x+S2.left*c)+'px');
   root.style.setProperty('--sheet-y', (o.y+S2.top*c)+'px');
+  /* THE SHEET HAS TWO HEIGHTS and both are written every time, because the one
+     that is SHOWN is chosen by CSS (body.made), not here — that is what lets the
+     ending be a transition on a class rather than a repaint. --sheet-hm is the
+     made sheet, longer by the record's rows; --ply-h is the poster layer's own
+     height, which is ALWAYS the long one.
+
+     The layer being permanently longer than the frame is the whole mechanism.
+     The poster is stretched to fill its layer (preserveAspectRatio="none"), so a
+     layer that grew with the frame would stretch the artwork by 10% for the
+     length of the transition and snap back at the end. Instead the layer is cut
+     once, at its final proportions, hangs two cells past the foot of the sheet
+     from the very first paint, and #frame's overflow hides the part that has not
+     been earned yet. Growing the frame does not resize anything: it UNCOVERS. */
+  root.style.setProperty('--sheet-hm', (F.rows+RECORD_ROWS)*c+'px');
+  root.style.setProperty('--ply-h',    (F.rows+RECORD_ROWS)*c+'px');
 }
 /* the format's own outline, fitted inside a cap x cap box */
 const glyph=(F,cap)=>{
@@ -71,7 +86,7 @@ function closeFmtMenu(back){
   if(!fmtOpen()) return;
   fmtMenu.classList.remove('open');
   fmtBtn.setAttribute('aria-expanded','false');
-  if(!openQ && !finished) holdWorld(false);   // never unfreeze under an open card
+  if(!openQ) holdWorld(false);                // never unfreeze under an open card
   if(back) fmtBtn.focus();
 }
 
@@ -123,7 +138,7 @@ function changeFormat(id){
        is invisible — and it has to be dropped, or the next change would find
        both layers opaque and cut instead of dissolving */
     plys[1-livePly].classList.remove('live');
-    if(pinnedQ||finished) placeCard();
+    if(pinnedQ) placeCard();
     renderDots();                         // only to re-check what the card buries
   }, MORPH_MS+40);
 }

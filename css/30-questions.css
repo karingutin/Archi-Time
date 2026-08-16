@@ -154,6 +154,37 @@
   .qsave:disabled{background:var(--q-past);cursor:default}
   .qsave:focus-visible{outline:2px solid #FFFFFF;outline-offset:-4px}
 
+  /* ---- THE WAY OUT, once the poster is made ----
+     Five cells by one, in the column the question panels stood in. They are
+     the SAVE button inverted, and they have to be: the ground under them is
+     the inverted board (body.made), so a black cell with white type — the
+     panel's own clothes — would be a hole in it. White cell, black type,
+     which is also what the panels themselves were. */
+  .qout{display:flex;align-items:center;justify-content:center;
+        background:var(--q-panel);color:var(--q-text);border:0;
+        font-family:var(--q-face);font-weight:400;text-transform:uppercase;
+        cursor:pointer;transition:filter .16s}
+  .qout:hover:not(:disabled){filter:brightness(.88)}
+  .qout:disabled{cursor:default;filter:brightness(.72)}
+  .qout:focus-visible{outline:2px solid var(--q-text);outline-offset:-4px}
+  /* BACK IS THE RESET CONTROL, moved onto the lattice — same face, same size,
+     same rule under it, and it takes the same two chrome colours so it inverts
+     with the ground exactly as Reset does. Its BOX is five cells by one like
+     the three above it; the rule under the word is the word's own width, which
+     is what makes it read as a way out rather than a fourth thing to press. */
+  .qback{display:flex;align-items:center;justify-content:flex-start;
+         background:transparent;border:0;padding:0;cursor:pointer;
+         font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;
+         text-transform:uppercase;color:var(--chrome-ink);
+         transition:color var(--flip) var(--eo)}
+  .qback span{border-bottom:1px solid var(--chrome-line);padding-bottom:1px;
+              transition:border-color var(--flip) var(--eo)}
+  /* the shorter duration on the hover rule, exactly as on #reset — see the note
+     there for why the flip owns the base and the pointer owns the override */
+  .qback:hover{color:var(--chrome-hot);transition-duration:.15s}
+  .qback:hover span{border-bottom-color:var(--chrome-hot);transition-duration:.15s}
+  .qback:focus-visible{outline:1px solid var(--chrome-hot);outline-offset:2px}
+
   /* Save on the left, Skip pushed to the far right. The gap between them is the
      point: the two exits are not a pair of equals, so they must not sit side by
      side looking like a choice between two buttons. */

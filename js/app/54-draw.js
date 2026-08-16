@@ -302,11 +302,11 @@ function paint(){
 }
 function draw(){
   if(rafId) return;
-  rafId=requestAnimationFrame(()=>{ rafId=null; paint(); paintLogo(); });
+  rafId=requestAnimationFrame(()=>{ rafId=null; paint(); });
 }
 function drawNow(){
   if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
-  paint(); paintLogo();
+  paint();
 }
 
 /* Dissolve the whole sheet from its current inks to whatever buildSVG paints now
@@ -325,7 +325,7 @@ function crossfadePoster(){
   plys[to].classList.add('live');             // new fades in over it
   livePly=to;
   addHitRects(plys[to]);
-  paintLogo();
+
 }
 
 function newSeed(){

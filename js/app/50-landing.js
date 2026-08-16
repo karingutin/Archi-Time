@@ -41,6 +41,8 @@ const HERO_TITLE='Architecture of Time';
 const HERO_PAD=2;                          /* whole cells of clearance round the plate */
 let FIELD=null;
 let heroLayoutFn=null;                      /* the hero's resize handler, removed on teardown */
+let heroTourCtl=null;                       /* the opening tour's {stop,suspend}, while one is running */
+let heroHoverCell=null;                     /* the KAIRO cell the hand is resting on, if any */
 
 /* Built once, on the first landing step, and kept alive until the sequence
    hands over to the board. Every step re-renders #landingBody from scratch;
@@ -54,6 +56,8 @@ function ensureField(){
   return FIELD;
 }
 function teardownHero(){
+  if(heroTourCtl){ heroTourCtl.stop(); heroTourCtl=null; }
+  heroHoverCell=null;
   if(FIELD){ FIELD.stop(); FIELD=null; }
   if(heroLayoutFn){ window.removeEventListener('resize',heroLayoutFn); heroLayoutFn=null; }
   const cv=landing.querySelector('#heroField');
@@ -98,8 +102,18 @@ const HERO_LOGO_CELLS=[[0,0],[1,1],[2,0],[3,1],[4,0]];
    but those four squares is lit, and the pointer reads as focused on the
    letter. */
 function heroCellHover(el){
-  el.addEventListener('mouseenter',()=>{ if(FIELD) FIELD.focus(el.getBoundingClientRect()); });
-  el.addEventListener('mouseleave',()=>{ if(FIELD) FIELD.focus(null); });
+  el.addEventListener('mouseenter',()=>{
+    /* the hand has landed ON a cell — the opening walk breaks off at once
+       rather than dragging the star off the letter being pointed at, and it
+       will not come back while the cursor is parked here */
+    heroHoverCell=el;
+    if(heroTourCtl) heroTourCtl.suspend();
+    if(FIELD) FIELD.focus(el.getBoundingClientRect());
+  });
+  el.addEventListener('mouseleave',()=>{
+    if(heroHoverCell===el) heroHoverCell=null;
+    if(FIELD) FIELD.focus(null);
+  });
 }
 /* Builds the mark's DOM only — five letter cells and START — with no sizes yet.
    layoutHeroLogo() measures and places everything, so the same nodes can be
@@ -154,6 +168,154 @@ function layoutHeroLogo(box,tiles,start){
   start.style.fontSize=(Math.round(cell*0.42)-2)+'px';
 }
 
+/* ---- THE OPENING TOUR ------------------------------------------------------
+   The screen shows itself. On load the light walks the mark — K, A, I, R, O,
+   and then Start — doing exactly what a visitor's cursor does when it runs
+   through the tiles: the star gathers onto each cell's four corners, those four
+   corner marks go dark, and then it opens back into its twelve rays for the
+   straight run to the next cell. Start is the destination, so it is held twice
+   as long as a letter.
+
+   Nothing here is a second animation. It drives the SAME two mechanisms hover
+   drives — FIELD.drive() moves the light the way a pointer would, and .hot is
+   the class form of :hover — so the tour can never drift out of step with what
+   the hand does. If the two ever disagree it is because someone changed one and
+   not the other, and the fix is to keep them on one rule (see .kmark in
+   css/20-aperture.css).
+
+   IT IS NOT A LOOP. It walks once and then lets go: the star wanders off on the
+   field's ordinary drift and stays there. What brings it back is the visitor —
+   the moment the hand moves, the walk drops whatever it was doing and the light
+   follows the cursor, and when that hand has been still for TOUR_IDLE the walk
+   runs once more and hands the light back to the drift again.
+
+   Written the other way round — a walk that repeats on a timer and gets out of
+   the way when interrupted — it would be a screensaver playing at the visitor.
+   This way round the visitor's own stillness is what asks for it, so it reads as
+   the screen answering rather than performing. The one and only exception is
+   the first run, which nobody asked for because nobody has arrived yet. */
+const TOUR_DELAY=600;        /* ms before the first walk: let the mark land first */
+const TOUR_TRAVEL=200;       /* ms of straight-line travel from one cell to the next */
+const TOUR_RETURN=460;       /* ms for the long run back to K at the head of a walk */
+const TOUR_DWELL=300;        /* ms the light rests on a letter */
+const TOUR_START_DWELL=600;  /* Start is the destination, not one more stop */
+const TOUR_IDLE=3000;        /* ms of a still hand before the walk runs again */
+
+function heroTour(tiles,start){
+  /* No autonomous motion under reduced motion — the field already honours that,
+     and a self-running cursor is the most literal thing on the screen. */
+  if(matchMedia('(prefers-reduced-motion:reduce)').matches) return null;
+  const stops=[...tiles,start];
+  const dwellOf=el=>el===start?TOUR_START_DWELL:TOUR_DWELL;
+  const centreOf=el=>{ const r=el.getBoundingClientRect();
+                       return {x:(r.left+r.right)/2,y:(r.top+r.bottom)/2,rect:r}; };
+  const ease=t=>t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;   /* in-out cubic: a hand sets off and arrives */
+
+  let raf=null,dead=false,lastMove=-Infinity;
+  /* armed: a hand has moved since the last walk, so its stillness now counts as
+     a request for another one. Cleared the moment that walk sets off, which is
+     what stops this being a loop — with nobody there, nothing re-arms it. */
+  let armed=false;
+  let phase='wait',idx=0,at=0,dur=TOUR_DELAY,from=null,to=null,first=true;
+
+  const unlight=()=>stops.forEach(el=>el.classList.remove('hot'));
+
+  /* begin a phase; `at` is stamped by the caller's clock so a dropped frame
+     never accumulates into drift */
+  function go(p,d,now){ phase=p; dur=d; at=now; }
+
+  function beginTravel(now){
+    to=centreOf(stops[idx]);
+    if(first&&idx===0){ from=to; go('travel',0,now); return; }   /* the first pass opens ON K, already there */
+    from=idx===0 ? FIELD.at() : from;                            /* a later pass sets off from wherever the drift left the light */
+    go('travel',idx===0?TOUR_RETURN:TOUR_TRAVEL,now);
+  }
+
+  function tick(now){
+    if(dead) return;
+    raf=requestAnimationFrame(tick);
+    if(!FIELD) return;
+    const t=dur?Math.min(1,(now-at)/dur):1;
+
+    if(phase==='wait'){
+      /* the light is simply on K already, held there while the mark settles —
+       every frame, so a late webfont re-layout cannot leave it behind */
+      const k=centreOf(stops[0]);
+      FIELD.warp(k.x,k.y);
+      if(t>=1){ idx=0; beginTravel(now); }
+      return;
+    }
+    if(phase==='travel'){
+      const e=ease(t);
+      FIELD.drive(from.x+(to.x-from.x)*e, from.y+(to.y-from.y)*e);
+      if(t>=1){
+        /* arrival: the star collapses onto this cell exactly as on mouseenter,
+           and the cell's four corner marks go dark with it */
+        const el=stops[idx];
+        FIELD.focus(el.getBoundingClientRect());
+        el.classList.add('hot');
+        go('dwell',dwellOf(el),now);
+      }
+      return;
+    }
+    if(phase==='dwell'){
+      to=centreOf(stops[idx]);            /* re-read: a resize mid-dwell must not strand the light */
+      FIELD.drive(to.x,to.y);
+      FIELD.focus(to.rect);
+      if(t>=1){
+        stops[idx].classList.remove('hot');
+        FIELD.focus(null);                /* the star opens back out for the run to the next cell */
+        from=to;
+        if(++idx<stops.length){ beginTravel(now); }
+        else{
+          /* the walk is done. It ended on Start, nowhere near the cursor, so
+             there is nothing to hand the light back to but the drift. */
+          first=false; FIELD.focus(null); FIELD.release(true); go('idle',0,now);
+        }
+      }
+      return;
+    }
+    if(phase==='idle'){
+      /* The light is the visitor's, or the drift's. Nothing here repeats on a
+         clock: the walk only runs again if a hand has moved since the last one
+         (armed) and has then been still for TOUR_IDLE. Parked on a cell is not
+         idle — the visitor is pointing at a letter, and walking off with the
+         star would be the screen talking over them. */
+      if(armed && now-lastMove>=TOUR_IDLE && !heroHoverCell){ armed=false; idx=0; beginTravel(now); }
+      return;
+    }
+  }
+
+  /* The hand moves: the walk lets go THAT INSTANT and the light is the
+     cursor's. This is also what arms the next walk — see `armed`. */
+  const onMove=()=>{ lastMove=performance.now(); armed=true; suspend(); };
+  landing.addEventListener('pointermove',onMove);
+
+  /* Break off the walk where it stands and give the light back to the hand.
+     The star opens back out of whatever letter it had gathered onto — unless
+     the cursor has just landed ON a cell, in which case heroCellHover owns the
+     focus now and clearing it here would undo that. */
+  function suspend(){
+    if(dead||phase==='idle') return;
+    first=false;                       /* no more warping onto K; the next walk travels there */
+    unlight();
+    if(FIELD){ if(!heroHoverCell) FIELD.focus(null); FIELD.release(); }
+    go('idle',0,performance.now());
+  }
+
+  function stop(){
+    if(dead) return;
+    dead=true;
+    if(raf) cancelAnimationFrame(raf);
+    landing.removeEventListener('pointermove',onMove);
+    unlight();
+    if(FIELD) FIELD.release();
+  }
+
+  raf=requestAnimationFrame(now=>{ at=now; raf=requestAnimationFrame(tick); });
+  return {stop,suspend};
+}
+
 function renderLandingHero(){
   const plate=document.createElement('div'); plate.className='hero-plate hero-kairo';
   const {box,tiles,start}=buildHeroLogo();
@@ -178,6 +340,13 @@ function renderLandingHero(){
      reveal on this screen, so it is handed no characters. */
   const field=ensureField();
   field.setChars([]);
+
+  /* The screen shows itself: the light walks K A I R O and rests on Start,
+     stepping aside for the hand and coming back when it goes quiet. Started
+     after the first paint so the cells have been placed and their rects are
+     real. */
+  if(heroTourCtl){ heroTourCtl.stop(); heroTourCtl=null; }
+  requestAnimationFrame(()=>{ if(FIELD) heroTourCtl=heroTour(tiles,start); });
   /* Focus is NOT taken here: openLanding() renders the step before it adds
      .open, so nothing inside can take focus yet. renderLandingStep's deferred
      focus handles it. */
@@ -255,6 +424,10 @@ function heroField(cv,frameOf){
      The gap between them is the whole feel of the thing: the field follows the
      hand, it does not teleport with it. */
   let fx=0,fy=0,px=0,py=0,pointer=false;
+  /* the opening tour (heroTour) drives the light itself for a few seconds.
+     While it does, the autonomous drift stands aside — otherwise the two would
+     pull at the same point and the tour would read as a wobble. */
+  let scripted=false;
 
   function measure(){
     dpr=Math.min(2,window.devicePixelRatio||1);
@@ -436,7 +609,7 @@ function heroField(cv,frameOf){
 
     /* Before the hand arrives — and on any device that has no hand — the light
        drifts on its own, so the screen is never dead on first sight. */
-    if(!pointer){
+    if(!pointer&&!scripted){
       px=W/2+W*0.34*Math.sin(now*0.00021);
       py=H/2+H*0.30*Math.sin(now*0.00029+1.1);
     }
@@ -490,6 +663,23 @@ function heroField(cv,frameOf){
     /* aims the concentrate-on-hover transition: pass the hovered cell's rect and
        the rays gather onto its four corners; pass null and the star springs back */
     focus(r){ if(r) focusRect=r; focusTarget=r?1:0; if(reduce){ focusAmt=focusTarget; if(!r) focusRect=null; paint(); } },
+    /* ---- the tour's hold on the light ------------------------------------
+       drive() pulls the light towards a point in CLIENT coordinates, exactly
+       as a pointer would, and holds off the drift while it does. at() reports
+       where the light actually is, also in client coordinates, so a tour can
+       set off from wherever the drift left it rather than teleporting.
+       release() hands the light back: bare, to the hand that interrupted, and
+       release(true) to the drift, forgetting the hand entirely — which is what
+       a walk that ran to its end wants, since it has already left the cursor
+       far behind and there is nothing to hand back to. */
+    drive(x,y){ scripted=true; px=x-rect.left; py=y-rect.top; },
+    /* drive() pulls and the light eases in behind it; warp() puts it there
+       outright. The opening tour uses this once, to be already on K rather
+       than to be seen arriving at it. A cut, not a tween — the same rule the
+       beat follows. */
+    warp(x,y){ scripted=true; px=x-rect.left; py=y-rect.top; fx=px; fy=py; },
+    at(){ return {x:fx+rect.left,y:fy+rect.top}; },
+    release(toDrift){ scripted=false; if(toDrift) pointer=false; },
     stop(){
       if(raf) cancelAnimationFrame(raf);
       window.removeEventListener('resize',onResize);
@@ -515,11 +705,19 @@ function renderLandingStep(){
 }
 function advanceLanding(){
   if(landingStep+1<LANDING_STEPS.length){ landingStep++; renderLandingStep(); }
-  else finishBase();
+  /* THE LAST STEP DOES NOT DISMISS ITSELF. START hands over to the opening
+     film, which builds the interface grid out of this screen's own squares and
+     only then calls finishBase (see js/app/57-transition.js). Under reduced
+     motion playOpening is finishBase, so the two ways past this line stay one
+     way in the code. */
+  else playOpening();
 }
 function showIntro(){
   /* nothing to show — straight to the board (SHOW_OPENING off) */
   if(!LANDING_STEPS.length){ finishBase(); return; }
+  /* the film cut this screen away rather than fading it; Reset brings it back,
+     and it gets its ordinary fade with it */
+  landing.classList.remove('nofade');
   introOpen=true; landingStep=0;
   renderLandingStep();
   landing.classList.add('open');
@@ -529,6 +727,10 @@ function showIntro(){
 function finishBase(){
   teardownHero();
   S.baseDone=true;
+  /* THE CLOCK STARTS HERE, not at page load: what the record reports is how long
+     the experience took, and the wait before someone presses Begin is not part
+     of it (see js/app/63-record.js). */
+  startClock();
   introOpen=false;
   landing.classList.remove('open');
   landing.setAttribute('aria-hidden','true');

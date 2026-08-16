@@ -1,7 +1,13 @@
 /* =====================================================================
    SVG
    ===================================================================== */
-function buildSVG(F){
+/* `baked` is for the EXPORT and nothing else. A saved SVG carries no
+   stylesheet, so the one thing CSS is holding for the live board — the
+   artwork's retreat once the poster is made (see syncRetreat) — has to be
+   written into the file as an attribute instead. Everything else in here is
+   already self-contained; the record's own write-in animation is inert in an
+   export the same way the word layer's is. */
+function buildSVG(F,baked){
   const B=box(F);
   const C=PAPER;
   const smokeMax=25;
@@ -17,6 +23,14 @@ function buildSVG(F){
      everything identifying is kept in the data record (payload()), not on the
      artwork itself.
 
+     THAT HOLDS FOR THE ARTWORK ONLY, AND THE FOOT IS NOT THE ARTWORK. Once the
+     poster is MADE the artwork steps back a cell on three sides and the bottom
+     two rows become the data record: the session's answers written out as plain
+     text, with how long it took and when (see recordLayer, js/app/63-record.js).
+     Still nothing identifying — no name and no birthdate, since nothing
+     collects either — but the answers are now on the sheet as well as in
+     payload(), which is the whole point of the band.
+
      Every layer is EARNED, the base grid now included: it draws only once its
      own question has actually been answered (isChosen), never merely reached.
      So the sheet the board opens on is bare ground, the grid arrives with the
@@ -26,6 +40,12 @@ function buildSVG(F){
   const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+B.w+' '+B.h+'"'
     + ' width="'+B.w+'" height="'+B.h+'" preserveAspectRatio="none">'
     + '<rect width="'+B.w+'" height="'+B.h+'" fill="'+C.bg+'"/>'
+    /* EVERYTHING DRAWN SITS IN ONE GROUP, and it is that group the retreat
+       moves — the grid, the marks and the smoke step back together, because
+       they are the artwork and the artwork is one thing. The paper rect above
+       is deliberately outside it: the sheet does not retreat, the picture on it
+       does, and the margin that opens is that rect showing through. */
+    + '<g class="pageout"'+(baked && posterDone ? retreatAttr(F) : '')+'>'
     + (isChosen('shape') ? '<g class="hl" data-q="basegrid" style="pointer-events:none">'+baseGridLayer(C,B)+'</g>' : '')
     /* the answered layers live in .art so a hovered one can be picked out and the
        rest dimmed (see the .hl hover rules). Each layer is a single child of .art;
@@ -79,6 +99,15 @@ function buildSVG(F){
        are kept (unwired) like smoke, so the layer can be brought back with one
        line if it is ever wanted again. happiness now records but draws nothing. */
     + smokeLayer(smoke,smokeMax,S.seed,B)
+    + '</g>'
+    /* THE RECORD, outside the retreat and last of all: it is not part of the
+       picture, it is what the picture was answered from. Its mat is opaque
+       paper, so whatever the artwork still has down there is covered rather
+       than clipped — one fewer format-keyed clip path (see the two-plies note
+       on barLayer), and the same thing to look at.
+       Always in the markup, hidden by CSS until body.made — which is what lets
+       showFinish go on asking for no redraw. */
+    + recordLayer(B,C)
     + '</svg>';
   /* THE COLOURWAY recolours the whole sheet: the last question maps the poster's
      two ink roles to the chosen pair. red-role = every #F5242B, blue-role = every

@@ -181,6 +181,14 @@ const QUESTION_BANK=[
       "Present" reads first as the span of time rather than the way of being in
       it. */
    options:['Trust','Worry','Regret','Presence'],
+   /* EVERY PICK IS WRITTEN OUT, not just the first one. The entrance system is
+      one-shot by design — a layer's id goes into `entered` and its .enter class
+      never fires again — and for the marks that is right: a ring count changing
+      should glide, not replay its birth. But this layer is WORDS, and a word
+      that swaps for another word has not moved, it has been written again. So
+      the id is taken back out of the set before the repaint, and markEntries
+      tags it afresh. See the .sglyph rule for the write itself. */
+   onPick:()=>{ entered.delete('saying'); draw(); },
    display:v=>v},
   bin('gaze','Gaze','Right now, are you looking backward more, or forward more?',
       ['back','Backward'], ['forward','Forward']),

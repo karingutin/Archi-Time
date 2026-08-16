@@ -5,8 +5,28 @@
    --------------------------------------------------------------------- */
 let dialDrag=null, barDrag=null;
 qsys.addEventListener('click',e=>{
+  /* the way out, once the poster is made — three ways to keep it and one back */
+  const out=e.target.closest('.qout,.qback');
+  if(out){
+    const act=out.dataset.act;
+    if(act==='png') exportPNG(out);
+    else if(act==='jpg') exportJPG(out);
+    else if(act==='svg') exportSVG();
+    else hideFinish();
+    return;
+  }
   const save=e.target.closest('.qsave');
-  if(save){ saveAnswer(); renderSnake(); return; }
+  if(save){
+    /* THE TENTH PRESS DOES TWO THINGS, in this order: it banks the colourway
+       exactly as every other Next banks its answer, and then it ends the
+       asking. Reading the question BEFORE saving matters — saveAnswer moves the
+       flow on, so afterwards snakeQ() is no longer the question that was
+       pressed. */
+    const cur=snakeQ();
+    saveAnswer();
+    if(isCreateQ(cur)) showFinish(); else renderSnake();
+    return;
+  }
   const mo=e.target.closest('.mring .mo');
   if(mo){
     const cur=snakeQ();

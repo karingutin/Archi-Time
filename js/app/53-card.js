@@ -5,40 +5,15 @@ function renderCard(){
   const box=document.createElement('div');
   box.className='q';
 
-  if(finished){
-    const summary=ASKED.filter(q=>isAnswered(q.id))
-                       .map(q=>q.label+' '+q.display(ans(q.id))).join(' · ');
-    box.innerHTML='<h2>Your poster is ready.</h2><p class="hint">'+esc(summary)+'.</p>'+
-      '<div class="row">'+
-        '<button class="btn" id="dlPng" type="button">Download PNG</button>'+
-        '<button class="btn ghost" id="dlSvg" type="button">SVG for print</button>'+
-      '</div>'+
-      '<div class="collected">'+
-        '<span id="saveNote">Response saved \u00b7 '+RESPONSES.length+' collected'+
-          (CONFIG.DATA_ENDPOINT?' \u00b7 sent to endpoint':' \u00b7 no endpoint set')+'</span>'+
-        '<div class="row">'+
-          '<button class="btn ghost" id="cpJson" type="button">Copy JSON</button>'+
-          '<button class="btn ghost" id="dlCsv" type="button">All responses (CSV)</button>'+
-        '</div>'+
-      '</div>';
-    cardBody.appendChild(box);
-    box.querySelector('#dlPng').addEventListener('click',exportPNG);
-    box.querySelector('#dlSvg').addEventListener('click',exportSVG);
-    box.querySelector('#dlCsv').addEventListener('click',()=>downloadResponses('csv'));
-    box.querySelector('#cpJson').addEventListener('click',async e=>{
-      const ok=await copyPayload();
-      e.target.textContent = ok ? 'Copied' : 'Logged to console';
-      setTimeout(()=>{ e.target.textContent='Copy JSON'; },1600);
-    });
-    const foot=document.createElement('div');
-    foot.className='nav';
-    const close=document.createElement('button');
-    close.className='btn ghost'; close.type='button'; close.textContent='Close';
-    close.addEventListener('click',()=>closeCard(false));
-    foot.appendChild(close);
-    cardBody.appendChild(foot);
-    return;
-  }
+  /* THE FINISH CARD IS GONE. It was a floating popup — Download PNG, SVG for
+     print, and the collection tools — opened by the "Create Poster" button, and
+     the two are gone together. The ending is drawn on the lattice now, where the
+     questions were (see renderFinish). copyPayload and downloadResponses are
+     still defined and still callable; they simply have no button on the board.
+
+     What is left in this function is the old floating question card, which the
+     board also no longer opens — every question is answered in the panel (see
+     renderSnake). It is kept only because openQuestion still calls it. */
 
   const q=BANK[openQ];
   if(!q) return;
@@ -57,9 +32,9 @@ function renderCard(){
      time, shuts the card and leaves the question exactly as it was. */
   const foot=document.createElement('div');
   foot.className='nav';
-  /* Always just "Save" — even on the last question. Creating the poster is a
-     separate, deliberate action now (see #mkPoster), not something the last
-     Save silently doubles as. */
+  /* Always just "Save". The last question's press is called Create and does
+     make the poster, but that lives on the panel's own button (see saveLabel);
+     this card is not reached from the board at all. */
   const save=document.createElement('button');
   save.className='btn'; save.type='button'; save.textContent='Save';
   save.addEventListener('click',saveAnswer);
@@ -77,11 +52,10 @@ function renderCard(){
 /* Both exits do the same three things — mark the question behind us, save, and
    hand off to the next dot — and differ only in whether an answer was given.
    step() is that shared shape, so the two can never drift apart. */
-/* Saving or skipping the LAST question no longer auto-opens the finish card —
-   it behaves exactly like any other question. "Create the poster" is now a
-   deliberate, separate action (see #mkPoster below), not something bundled
-   into answering. So this always submits 'partial'; 'complete' is submitted
-   only by showFinish(), which only the dedicated button ever calls. */
+/* This always submits 'partial'. 'complete' is submitted by showFinish(), which
+   the tenth question's Create calls right after this (see the .qsave branch in
+   the qsys click handler) — so the last press banks the answer and then ends the
+   asking, in that order. */
 function step(passed){
   /* openQ is the old floating card's question. The board no longer opens it, so
      the question being answered is simply the one the snake is on — and that is
@@ -89,6 +63,9 @@ function step(passed){
      keeps the card's own state out of a flow that no longer uses it. */
   const from=openQ || ((snakeQ()||{}).id);
   if(!from) return;
+  /* the stretch since the last press belongs to the question being banked now —
+     it is what this one cost to answer (see the clock in js/app/63-record.js) */
+  markClock(from);
   snakeAt=null;                    // banked — the panel goes back to the flow
   S.done[from]=true;
   if(passed){
@@ -133,10 +110,8 @@ function renderStatus(){
      behaving differently and that IS worth stating. */
   if(!allDone() && forked()) bits.push('<span>'+availableQs().length+' open, pick either</span>');
   statusBar.innerHTML='<span class="statline">'+bits.join('<i class="sep"></i>')+'</span>';
-  resetBtn.disabled = done===0 && Object.keys(S.answers).length===0 && !finished;
-  /* the one and only "create the poster" control — see #mkPoster's own
-     comment for why it lives below the sheet rather than in this strip or
-     inside a question card */
-  mkBtn.classList.toggle('ready', allDone() && !finished);
+  /* never dead once the poster is made: Reset is one of the two ways back out
+     of the ending, and the ground has to be able to come back */
+  resetBtn.disabled = done===0 && Object.keys(S.answers).length===0 && !posterDone;
 }
 

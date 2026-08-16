@@ -12,6 +12,14 @@
    Set pinned:true on a question that must always be asked.
    ===================================================================== */
 const BUILD='b291310';   // shown bottom-left, so you can confirm which build you are looking at
+/* HOW LONG THE BOARD TAKES TO TURN OVER, in ms, and it is the JS twin of the
+   CSS's --flip. It exists because ONE thing has to wait for a transition CSS
+   owns: the way out cuts in only once the ground has finished going to its
+   negative (see renderFinish). If --flip is retuned, this number moves with it
+   — they are one duration written twice, exactly as MORPH_MS and --morph
+   already are. The curve is --eo, so the colour is all but arrived well before
+   this elapses; the wait is for the end of it, not for the look of it. */
+const FLIP_MS=460;
 const CONFIG = {
   DATA_ENDPOINT: "",            // e.g. "https://hook.eu2.make.com/xxxxx"
   POST_TO_PARENT: true,
@@ -102,10 +110,25 @@ const FMTS=Object.fromEntries(FORMATS.map(f=>[f.id,f]));
    every other format to be small enough to leave room for it. With the list
    down to four, nothing is wider than 21 cells or taller than 32, and the
    poster comes out LARGER than it ever has. */
+/* THE SHEET IS TWO ROWS TALLER ONCE THE POSTER IS MADE. Pressing Create
+   lengthens it downward by exactly this many cells, and those rows are the data
+   record (see js/app/63-record.js). The artwork does not move, does not scale
+   and does not lose a millimetre: the sheet simply gets longer underneath it.
+   Declared here, with the formats, because it is part of every format's real
+   footprint and three other things have to know it — the cell size, the union
+   the dots keep clear of, and the poster's own viewBox. */
+const RECORD_ROWS=2;
 /* the widest and the tallest format, which is what the cell size has to
    accommodate so that no format ever overflows the viewport */
+/* THE TALLEST INCLUDES THE RECORD'S TWO ROWS, and it has to: the cell is sized
+   so that no format can overflow the screen, and the tallest thing a format
+   ever is, is itself plus the band it ends with. Reserving the room here rather
+   than at the Create press is the whole reason the poster can grow without the
+   grid, the mark or anything else on the board shifting by a pixel. It costs
+   the asking a slightly smaller sheet; it buys an ending that only moves the
+   one thing that should move. */
 const MAXC=Math.max(...FORMATS.map(f=>f.cols));
-const MAXR=Math.max(...FORMATS.map(f=>f.rows));
+const MAXR=Math.max(...FORMATS.map(f=>f.rows))+RECORD_ROWS;
 
 /* One grid cell, in poster units. CONSTANT — and paired with the cell counts
    above: it went 50 -> 75 when they went 21 -> 14, so the default sheet is

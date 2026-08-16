@@ -56,7 +56,14 @@ function payload(status){
       /* the format is not an answer, but the poster cannot be reproduced from
          the seed without it, so it belongs in the record */
       format:S.format,
-      format_ratio:FMT().ratio
+      format_ratio:FMT().ratio,
+      /* the two figures the poster's own foot now prints, so the stored record
+         and the printed one say the same thing (see js/app/63-record.js).
+         Live while the asking is open, frozen at the Create press. */
+      duration_ms: CLOCK.total!=null ? Math.round(CLOCK.total)
+                 : (CLOCK.t0 ? Math.round(performance.now()-CLOCK.t0) : null),
+      per_question_ms: Object.fromEntries(
+        Object.entries(CLOCK.per).map(([k,v])=>[k,Math.round(v)]))
     },
     /* Not answers — nobody chose these and they say nothing about the person.
        Recorded anyway because the poster cannot be rebuilt without them: only
@@ -143,17 +150,30 @@ function download(blob,name){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1200);
 }
-function exportSVG(){ download(new Blob([buildSVG()],{type:'image/svg+xml'}), fileBase()+'.svg'); }
+/* EVERY EXPORT IS BAKED. The board's finished state is half held by CSS — the
+   artwork's retreat once the poster is made — and a saved file carries no
+   stylesheet, so the flag is what writes that transform into the markup. Pass
+   it or the exported sheet comes out full-bleed with the record printed over
+   the bottom of the artwork. */
+function exportSVG(){ download(new Blob([buildSVG(null,true)],{type:'image/svg+xml'}), fileBase()+'.svg'); }
 
 /* No font embedding step: the poster carries no text, so there is nothing to
    embed. This used to fetch Google Fonts and base64-inline two woff2 files on
    the first export — a real round-trip — and then splice them into a <style>
    tag that buildSVG no longer emits, so the splice silently did nothing. */
-async function exportPNG(){
-  const btn=document.getElementById('dlPng'), old=btn.textContent;
-  btn.textContent='Exporting…'; btn.disabled=true;
+/* ONE RASTERISER FOR BOTH, and the button it was pressed from is PASSED IN
+   rather than looked up. It used to read getElementById('dlPng'), which tied
+   the export to one particular button in one particular card — and that card
+   is gone. Anything that can be pressed can hand itself over; nothing has to,
+   and a call with no button simply exports without saying so on screen.
+   JPEG carries no alpha, but the sheet's first mark is an opaque ground rect
+   the width and height of the poster (see buildSVG), so there is no
+   transparency to lose and no white to paint in underneath. */
+async function exportRaster(kind,btn){
+  const old=btn?btn.textContent:'';
+  if(btn){ btn.textContent='Saving…'; btn.disabled=true; }
   try{
-    const svg=buildSVG();
+    const svg=buildSVG(null,true);        // baked — see exportSVG
     const img=new Image(), scale=2.6;
     const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));
     await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
@@ -162,10 +182,14 @@ async function exportPNG(){
     c.width=B.w*scale; c.height=B.h*scale;
     c.getContext('2d').drawImage(img,0,0,c.width,c.height);
     URL.revokeObjectURL(url);
-    c.toBlob(b=>{ if(b) download(b, fileBase()+'.png'); },'image/png');
+    const jpg=kind==='jpg';
+    c.toBlob(b=>{ if(b) download(b, fileBase()+'.'+kind); },
+             jpg?'image/jpeg':'image/png', jpg?0.92:undefined);
   }catch(e){ exportSVG(); }
-  finally{ btn.textContent=old; btn.disabled=false; }
+  finally{ if(btn){ btn.textContent=old; btn.disabled=false; } }
 }
+const exportPNG=btn=>exportRaster('png',btn);
+const exportJPG=btn=>exportRaster('jpg',btn);
 
 
 

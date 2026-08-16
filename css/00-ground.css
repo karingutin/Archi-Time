@@ -5,6 +5,18 @@
 
 
 
+  /* THE ONE REGISTERED CUSTOM PROPERTY, and it is registered for exactly one
+     reason: the lattice's colour is consumed inside a background-image (two
+     gradients — see .gridlayer), and an unregistered custom property inside an
+     image cannot be interpolated, so the board's flip to the negative would cut
+     while everything around it faded. Declaring its syntax makes --gridline
+     itself animatable, and the gradients re-resolve on every frame of it.
+     Every OTHER colour variable here is consumed straight as a colour value, so
+     the property that consumes it transitions on its own and needs nothing.
+     initial-value must restate the light value: it is what the property falls
+     back to, and getting it wrong shows up as a wrong grid for one frame. */
+  @property --gridline{syntax:'<color>';inherits:true;initial-value:#D7D4CC}
+
   :root{
     /* interface — fixed, never touched by answers */
     /* The board's ground. Off-white, not white: pure white would leave the
@@ -28,6 +40,14 @@
     --gridline:#D7D4CC;
     --sheetline:rgba(0,0,0,.34);        /* the lines bounding the sheet: darker */
     --dot:#D6D6D6;
+    /* THE FIXED CHROME'S THREE TONES — the Reset control's ink, the rule under
+       it, and what both go to on hover. They are variables and not literals for
+       one reason: the board inverts when the poster is made (see body.made at
+       the foot of this file), and Reset and the Back beside the poster have to
+       invert with it. Every quiet control on the ground reads these three. */
+    --chrome-ink:rgba(0,0,0,.42);
+    --chrome-line:rgba(0,0,0,.22);
+    --chrome-hot:#000000;
 
     /* THE QUESTION SYSTEM — every value measured off the mock.
        One family, three weights of the same red: the trail behind you, the
@@ -69,6 +89,19 @@
     --sheet-y:150px;
     --over:160px;                  /* world overscan, so panning never shows an edge */
     --morph:620ms;
+    /* HOW LONG THE BOARD TAKES TO TURN OVER. It started at --morph's own 620,
+       on the argument that the sheet changing format and the ground going to
+       its negative should be the same move at two scales. They are not: a
+       format morph is the poster REARRANGING and wants the time to be followed,
+       while the flip is a light being switched — nobody watches a room go dark,
+       they notice that it has. 460 (Karin, 17 Aug).
+       AND IT DECELERATES: --eo, not --ease. --ease is symmetrical, so the flip
+       crept out of the light, ran, and crept into the dark, which put the slow
+       part at both ends where there is nothing to see. --eo leaves at once and
+       settles, so almost all of the change is over early and the last of it just
+       arrives. Every rule that flips uses these two together — see body below,
+       .surface, #reset, .sheet-lines i and .qback. */
+    --flip:460ms;
     --ease:cubic-bezier(.66,0,.34,1);
     --eo:cubic-bezier(.33,1,.68,1);     /* easeOutCubic: the tool-layer entrances/morphs decelerate into rest */
 
@@ -94,13 +127,22 @@
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;height:100%;overflow:hidden}
-  body{background:var(--ink);font-family:var(--ui);line-height:1.5;-webkit-font-smoothing:antialiased}
+  /* THE FLIP IS DRIVEN FROM HERE. body.made is what changes, so body is the
+     element whose computed values move — and both the ground it paints and the
+     lattice colour it hands DOWN are transitioned on it. An inherited value
+     that is mid-transition on the parent arrives at the child mid-transition
+     too, which is what carries the fade into .gridlayer without .gridlayer
+     needing to know anything about it. */
+  body{background:var(--ink);font-family:var(--ui);line-height:1.5;-webkit-font-smoothing:antialiased;
+       transition:background-color var(--flip) var(--eo),
+                  --gridline var(--flip) var(--eo)}
 
   /* the grid is the background of the whole interface. it is anchored to the
      sheet's top-left corner, so the sheet sits inside it rather than on it. */
   /* The stage. Holds the perspective; itself never moves. */
   .surface{position:fixed;inset:0;background-color:var(--ink);
-           overflow:hidden;perspective:1500px;perspective-origin:50% 50%}
+           overflow:hidden;perspective:1500px;perspective-origin:50% 50%;
+           transition:background-color var(--flip) var(--eo)}
 
   /* The world: everything that belongs to the board. Panned and tilted as one
      piece, so the grid, the sheet and the dots can never drift apart.
@@ -265,13 +307,77 @@
   #reset{position:absolute;right:max(16px, calc(1.6 * var(--cell)));bottom:max(14px, calc(1.3 * var(--cell)));z-index:8;
          font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
          background:transparent;border:0;padding:0 0 1px;cursor:pointer;
-         color:rgba(0,0,0,.42);border-bottom:1px solid rgba(0,0,0,.22);
-         transition:color .15s,border-color .15s}
-  #reset:hover{color:#000;border-bottom-color:#000}
+         color:var(--chrome-ink);border-bottom:1px solid var(--chrome-line);
+         transition:color var(--flip) var(--eo),border-color var(--flip) var(--eo)}
+  /* TWO DURATIONS ON ONE PAIR OF PROPERTIES, and the shorter one lives on the
+     hover rule rather than on the base. The same two colours are moved by two
+     different events: the pointer arriving, which must answer at once, and the
+     board turning over, which must not — at .15s this label went white while
+     the ground behind it was still white, and disappeared for a third of a
+     second every time the poster was made. The base rule owns the flip's
+     duration; :hover overrides it for as long as the pointer is there, so
+     hovering is instant and letting go eases back on the board's own clock. */
+  #reset:hover{color:var(--chrome-hot);border-bottom-color:var(--chrome-hot);
+               transition-duration:.15s}
   #reset:disabled{opacity:.3;cursor:default;border-bottom-color:transparent}
-  #reset:disabled:hover{color:rgba(0,0,0,.42)}
+  #reset:disabled:hover{color:var(--chrome-ink)}
 
   /* Placeholder, snapped to grid lines by placeChrome(). Drop real content
      inside; sized to 3 x 3 grid cells. */
   .chrome{position:absolute;z-index:8;pointer-events:none}   /* below the card; inert for now */
+
+  /* =====================================================================
+     THE POSTER IS MADE — and the board turns itself off around it.
+
+     EVERY VALUE HERE IS THE NEGATIVE OF THE ONE ABOVE IT, and that is the
+     whole rule: not a second palette that happens to be dark, but the same
+     palette read the other way round. #ECECEC becomes #131313, #D7D4CC
+     becomes #282B33, and every rgba(0,0,0,a) becomes rgba(255,255,255,a) at
+     its own alpha. So the RELATIONSHIPS survive the flip — the lattice is
+     one step off the ground on the dark side exactly as it was on the light
+     side, which is why it comes out dark grey and not white. A white grid
+     was the first attempt and it read as a new thing on the screen rather
+     than as the same board seen inverted (Karin, 16 Aug).
+
+     Everything drawn ON the ground — the mark, Reset, Back, the lines
+     bounding the sheet — takes the flip with it, which is the whole reason
+     those are variables and not literals.
+
+     THE POSTER IS NOT IN THIS RULE, AND MUST NEVER BE. Not the sheet, not
+     PAPER, not a single layer's colour: the piece that was just made is the
+     one thing on the screen that does not change when the interface steps
+     back from it. That is what the inversion is FOR — the artwork is now the
+     only lit thing on a board that has gone dark.
+
+     It cuts rather than fades, like every other state change in this piece:
+     --gridline is consumed inside a background-image, and a custom property
+     in a gradient cannot be interpolated without registering it. Nothing to
+     work around — the opening screen runs on hard cuts too.
+     ===================================================================== */
+  body.made{
+    --ink:#131313;                      /* the negative of #ECECEC */
+    --surface:#131313;
+    --gridline:#282B33;                 /* the negative of #D7D4CC: dark grey, one step off the ground */
+    --fg:#EBEBEB;                       /* the negative of #141414 */
+    --dim:rgba(255,255,255,.50);
+    --line:rgba(255,255,255,.16);
+    --accent:#EBEBEB;
+    --sheetline:rgba(255,255,255,.34);  /* the darker lines become the lighter ones */
+    --dot:#292929;
+    /* THE ONE PLACE THE FLIP IS NOT LITERAL. A hairline of white on black
+       carries less weight than the same hairline of black on white — the same
+       alpha does not buy the same read — so the two quiet controls, Reset and
+       the Back beside the poster, are given back what the flip costs them.
+       Karin, 16 Aug: they have to be MORE readable inverted, not equally
+       faint. Everything else on this list is the exact negative. */
+    --chrome-ink:rgba(255,255,255,.62);
+    --chrome-line:rgba(255,255,255,.36);
+    --chrome-hot:#FFFFFF;
+  }
+  /* The mark inverts with the ground: its three cells are var(--fg), which has
+     just become the light tone, so the name set across them has to go dark or
+     it vanishes into its own ground. The coloured cell keeps the colourway's
+     ink — that is the poster's colour, and the poster does not change — and the
+     two letters over it simply read dark on it like the other three. */
+  body.made #kairo .kw{color:#131313}
 

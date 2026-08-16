@@ -18,6 +18,16 @@
     opacity:0;visibility:hidden;pointer-events:none;
     transition:opacity .38s ease,visibility .38s}
   #landing.open{opacity:1;visibility:visible;pointer-events:auto}
+  /* A slight vignette: the ground darkens towards the corners so the lattice
+     falls away at the edges and the middle — where the mark and the light are —
+     reads as the lit part of the screen. Deliberately weak and deliberately
+     centred on the viewport, not on the grid: it has no edge to land on a
+     line, it is a fall-off. Over the field and the mark both, so nothing on
+     the screen sits outside the same light. */
+  #landing::after{content:'';position:absolute;inset:0;z-index:2;
+    pointer-events:none;
+    background:radial-gradient(ellipse 100% 100% at 50% 50%,
+      rgba(0,0,0,0) 58%,rgba(0,0,0,.28) 100%)}
   #landingBody{width:min(380px,88vw)}
   .landing-kicker{font-family:var(--mono);font-size:10px;letter-spacing:.24em;
     text-transform:uppercase;color:var(--dim);margin:0 0 20px}
@@ -49,6 +59,29 @@
      itself around whatever the screen is showing. */
   #heroField{position:absolute;inset:0;display:block;width:100%;height:100%;
     z-index:0;pointer-events:none}
+
+  /* ---- THE GRID FORMS — the film that turns this screen into the board -----
+     #gridRun stands exactly where #heroField stood, on the same lattice and at
+     the same square size, and runs the interface's own lines across it (see
+     js/app/57-transition.js). It is a second canvas rather than a mode of the
+     first because what it paints has nothing to do with the light: the field
+     answers the hand, and this answers nobody — it is over as soon as it has
+     built the grid.
+
+     Under it, not over it. The mark's cells are opaque and sit above both
+     canvases, so a line reaching a letter is hidden until the letter goes —
+     which is the read: the line arrives, the cell is gone, the line is there
+     underneath. .cut is how a DOM cell dies, and it is visibility and not
+     opacity for the reason everything on this screen is: it CUTS. */
+  #gridRun{position:absolute;inset:0;display:block;width:100%;height:100%;
+    z-index:0;pointer-events:none}
+  .klogo .kt.cut,.kstart.cut{visibility:hidden}
+
+  /* And the screen itself cuts. The film's last frame is pixel for pixel what
+     .gridlayer paints behind it, so fading out over it would be the grid
+     dissolving against itself while the poster is trying to arrive through the
+     veil. Set by arriveBoard, cleared by showIntro so Reset fades as usual. */
+  #landing.nofade{transition:none}
   #landingBody{position:relative;z-index:1}
   #landing.hero{align-items:stretch}
   #landing.hero #landingBody{width:100%}
@@ -133,18 +166,29 @@
   .kmark.tr{right:calc(var(--cell)*-.085);top:calc(var(--cell)*-.085)}
   .kmark.bl{left:calc(var(--cell)*-.085);bottom:calc(var(--cell)*-.085)}
   .kmark.br{right:calc(var(--cell)*-.085);bottom:calc(var(--cell)*-.085)}
-  .klogo .kt:hover{z-index:5}
-  .klogo .kt:hover .kmark,.kstart:hover .kmark{background:var(--fg)}
+  /* .hot is :hover in class form. The opening tour (heroTour) walks the mark on
+     load and must light each cell EXACTLY as the pointer does, so it sets this
+     rather than carrying a second set of styles that could drift from these
+     ones. Every rule below names both. */
+  .klogo .kt:hover,.klogo .kt.hot{z-index:5}
+  .klogo .kt:hover .kmark,.klogo .kt.hot .kmark,
+  .kstart:hover .kmark,.kstart.hot .kmark{background:var(--fg)}
   /* START — the one dark cell, filling the empty checkerboard slot between A and
      R (3 cells wide, 1 tall; positioned by JS). The first cell the visitor
      fills, before the board and its questions. */
+  /* NO SHADOW. It used to lift on hover — a 20px drop under the cell — and a
+     cast shadow is the one thing this screen cannot have: nothing here is
+     floating above anything, the letters and Start are cells that the lattice
+     has been filled in at. A shadow made Start a card sitting ON the grid
+     instead of a square OF it, which is the whole composition. Hover is stated
+     by the four corner marks going dark (see .kstart:hover .kmark), the same
+     way it is on every letter cell beside it. */
   .kstart{position:absolute;z-index:2;border:0;background:var(--fg);color:#FFFFFF;
     font-family:var(--display);font-weight:500;letter-spacing:.12em;text-transform:uppercase;
-    cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
-    transition:box-shadow .15s var(--ease)}
-  .kstart:hover{z-index:6;box-shadow:0 8px 20px -8px rgba(0,0,0,.4)}
+    cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .kstart:hover,.kstart.hot{z-index:6}
   .kstart:focus-visible{outline:none}
-  @media (prefers-reduced-motion:reduce){.kmark,.kstart{transition:none}}
+  @media (prefers-reduced-motion:reduce){.kmark{transition:none}}
 
   /* ---- the base questions' controls, rescoped -----------------------------
      The base questions moved into the board's own question system (bank Q1 and

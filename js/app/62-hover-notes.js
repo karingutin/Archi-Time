@@ -219,7 +219,7 @@ world.addEventListener('mouseout',e=>{
 /* clicking a dot toggles its card open and shut */
 function toggleQuestion(id){
   if(!canOpen(id)) return;
-  if(openQ===id || (finished && pinnedQ===id)) closeCard(false);
+  if(openQ===id) closeCard(false);
   else openQuestion(id);
 }
 dotsInt.addEventListener('click',e=>{
@@ -234,7 +234,7 @@ dotsInt.addEventListener('keydown',e=>{
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape') return;
   if(fmtOpen()) closeFmtMenu(true);           // the menu is the innermost thing open
-  else if(openQ||finished) closeCard(false);
+  else if(openQ) closeCard(false);
 });
 let resizeT=null;
 window.addEventListener('resize',()=>{ clearTimeout(resizeT); resizeT=setTimeout(relayout,140); });

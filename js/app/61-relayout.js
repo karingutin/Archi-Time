@@ -6,14 +6,19 @@ function relayout(){
   placeLogo();                // before computeDots: the mark's box is reserved
   if(CONFIG.FORMAT_SWITCHER) syncFmtControl();
   computeDots();
-  if(pinnedQ||finished) placeCard();
+  if(pinnedQ) placeCard();
   renderDots(); renderStatus(); draw();
 }
 
 /* DEV ONLY — jump straight to the last question (colour) so it can be tested
    without answering the whole flow. Not part of the real experience: set
    DEV_SKIP=false (or delete this block) before shipping. */
-const DEV_SKIP=true;
+/* OFF (Karin, 17 Aug — recording). This is the one switch for BOTH bottom-left
+   panels: the "last question" jump and the lattice blend/opacity tuner. The
+   functions themselves are untouched — devSkipToLast() still exists and can be
+   called from the console — it is only the on-screen controls that are gone.
+   Flip back to true to get them. */
+const DEV_SKIP=false;
 function devSkipToLast(){
   if(!S.baseDone) finishBase();                 // dismiss the opening screen
   const last='colorway';
