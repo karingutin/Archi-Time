@@ -758,7 +758,7 @@
        box to box    94/45 = 2.089       circle->label 10/45 = .222
        label 14/45 = .311 (12 + Karin's 2pt)   leading 1.33 -> .414           */
   .qpanel .qduo{display:flex;justify-content:center;align-items:flex-start;
-    gap:calc(var(--cell)*2.089)}
+    gap:calc(var(--cell)*1.3)}
   /* No width here: each option is exactly the circle's own box wide, and the
      circle takes the FEBDAYS row's diameter, set inline by shapeDuoMarkup —
      Q1's rings and Q4's circles are one size of the same mark, by decision. */
@@ -1564,9 +1564,21 @@ const QUESTION_BANK=[
      into the layer's data-q, the roll table and the CSV columns. */
   {id:'alarms', type:'number', label:'Snooze',
    title:'How many times do you press snooze in the morning?',
-   hint:'Think about a normal morning, not your best one',
+   hint:'Think about a normal morning',
    min:0, max:12, unit:'snoozes', default:1,
    display:v=>String(v)},
+  /* The fifth base question. A BAR with ten stops, 10..100 years, and its answer
+     drives the geometric rectangle pattern along the foot of the sheet — one more
+     column of rectangles per decade (10y -> 3 columns, 100y -> 12).
+     Swapped ahead of vacations (Karin, 16 Aug follow-up) — the array's order
+     is the ask order for these first seven, see pickQuestions. */
+  {id:'decades', type:'bar', label:'Decades',
+   title:'How many more decades do you honestly expect to have?',
+   /* Kept under 42 characters on purpose: a hint that wraps to two lines pushes
+      the bar (hung under the text) half a cell down the card for no reason. */
+   hint:'Heavy one, we know',
+   min:10, max:100, step:10, unit:'years', default:50,
+   display:v=>v+' years'},
   /* The FOURTH: the nested rings in the top-right corner. Its answer is the ring
      COUNT and nothing else — every other control on the tool is frozen (see
      RINGS), and the lean is the roll (see ROLLS).
@@ -1579,16 +1591,6 @@ const QUESTION_BANK=[
    hint:'How many of them surface?',
    options:['1','2','3','4+'],
    display:v=>v},
-  /* The fifth base question. A BAR with ten stops, 10..100 years, and its answer
-     drives the geometric rectangle pattern along the foot of the sheet — one more
-     column of rectangles per decade (10y -> 3 columns, 100y -> 12). */
-  {id:'decades', type:'bar', label:'Decades',
-   title:'How many more decades do you honestly expect to have?',
-   /* Kept under 42 characters on purpose: a hint that wraps to two lines pushes
-      the bar (hung under the text) half a cell down the card for no reason. */
-   hint:'Heavy one, we know',
-   min:10, max:100, step:10, unit:'years', default:50,
-   display:v=>v+' years'},
   /* The colourway — the LAST question of every session (see `last` and
      pickQuestions), the one that recolours the whole poster. A card: six split
      circles, each half one colour and half the other. Wiring to the poster comes
@@ -4361,8 +4363,9 @@ const SNAKE={
      snakeBand so it can never push the last question's Next off the bottom.
      Karin's "two cells lower" (16 Aug) is NOT a change to this number: three
      cells is what it always asked for, and the clamp was quietly eating two of
-     them by reserving a worst-case panel under every question. See snakeReach. */
-  top:3
+     them by reserving a worst-case panel under every question. See snakeReach.
+     2, not 3 (Karin, 16 Aug follow-up): the whole run starts one row higher. */
+  top:2
 };
 
 /* The free band, in grid cells from the origin. Two numbers per axis: the
@@ -4470,6 +4473,13 @@ const CIRCLE_GAP=0.1;                        // gap between answer circles, in c
    questions cannot drift into two different sizes of the same mark. */
 const RING_COLS=4;
 const ringCircleD=W=>((W-2*Q_INSET)-(RING_COLS-1)*CIRCLE_GAP)/RING_COLS;
+/* DENSITY ONLY (Karin, 16 Aug follow-up): its three circles no longer share the
+   month grid's diameter. A shallower inset than Q_INSET, divided across its own
+   three columns rather than the ring grid's four, so the circles grow — the
+   flex row's own gap (.qfill's CSS `gap`) is untouched, so the spacing between
+   them holds while the circles themselves get bigger. */
+const DENSITY_INSET=Q_INSET*0.4;
+const densityCircleD=W=>((W-2*DENSITY_INSET)-2*CIRCLE_GAP)/3;
 const CIRCLE_D_MAX=1.6;                      // cap the circle diameter so few-option rows keep a normal gap
 /* a per-question cap, checked before the shared one — febdays lost its "Happy
    birthday!" line, so its circles can grow back a touch into the freed room */
@@ -4543,8 +4553,15 @@ function textBottomCells(q){
    which ceils to 10 instead — the panel comes back to a square-ish 9x10, the
    grid sits a bit higher under the hint, and Next follows it up by exactly
    one cell (its top is panel.top + panel.height — see renderSnake). */
-const CTRL_GAP={ month:6/36.68, alarms:5/36.68, vacations:23/36.68, febdays:15/36.68,
-                 shape:26/45, density:26/45 };
+/* CIRCLES_DOWN_GAP (Karin, 16 Aug follow-up): febdays, vacations and saying are
+   the three circle-row questions and now share ONE gap, a touch past Q_INSET,
+   so their rows sit a little lower under the words than the shared default —
+   "take the circles down a bit". month lost its own override for the same
+   reason from the other side: it now falls through to Q_GAP (==Q_INSET), which
+   equalises its grid's top gap with the bottom hug instead of sitting tighter. */
+const CIRCLES_DOWN_GAP=0.56;
+const CTRL_GAP={ alarms:5/36.68, vacations:CIRCLES_DOWN_GAP, febdays:CIRCLES_DOWN_GAP,
+                 saying:CIRCLES_DOWN_GAP, shape:26/45, density:26/45 };
 const ctrlGap=id=>CTRL_GAP[id]!==undefined ? CTRL_GAP[id] : Q_GAP;
 
 /* THE PANEL'S INSIDES, as markup. Extracted so the run's reach can be MEASURED
@@ -4605,6 +4622,12 @@ function snakeReach(){
 
 function snakeParts(i,j,sx,sy){
   const PH=snakeParts.h||6, PW=snakeParts.w||SNAKE.panel.w;
+  /* colorway only (Karin, 16 Aug follow-up): the panel steps one column further
+     from the marker so it clears the "/10" counter, and Save widens to 3 cells
+     and reads "Create" — see renderSnake. Both default back to SNAKE's own
+     numbers for every other question. */
+  const panelDx=snakeParts.panelDx!=null ? snakeParts.panelDx : SNAKE.panel.dx;
+  const saveW=snakeParts.saveW||SNAKE.save.w;
   const put=(o)=>({
     c: sx>0 ? i+o.dx : i-o.dx-(o.w-1),
     r: sy>0 ? j+o.dy : j-o.dy-(o.h-1),
@@ -4613,10 +4636,10 @@ function snakeParts(i,j,sx,sy){
   return {
     step:{c:i, r:j, w:1, h:1},
     total:put(SNAKE.total),
-    panel:put({...SNAKE.panel, w:PW, h:PH}),
+    panel:put({...SNAKE.panel, dx:panelDx, w:PW, h:PH}),
     /* Save hangs off the panel's lower-right corner, so its row follows the
        panel's height rather than being a constant */
-    save:put({...SNAKE.save, dx:SNAKE.panel.dx+PW, dy:1+PH})
+    save:put({...SNAKE.save, w:saveW, dx:panelDx+PW, dy:1+PH})
   };
 }
 
@@ -4648,6 +4671,9 @@ function snakeFigure(n){
   const q=ASKED[n];
   const PS = q ? {w:panelSize(q).w, h:panelHeightCells(q,cellSize())} : {w:SNAKE.panel.w, h:6};
   snakeParts.h=PS.h; snakeParts.w=PS.w;
+  const isColorway=q && q.id==='colorway';
+  snakeParts.panelDx=isColorway ? SNAKE.panel.dx+1 : SNAKE.panel.dx;
+  snakeParts.saveW=isColorway ? 3 : SNAKE.save.w;
   for(const [sx,sy] of [[1,1],[1,-1],[-1,1],[-1,-1]]){
     const P=snakeParts(m.i,m.j,sx,sy);
     if(snakeFits(P,B)) return {...P, sx, sy, i:m.i, j:m.j, fitted:true};
@@ -4979,7 +5005,7 @@ const BAR={
   fat:0.34,                 // the bar at ten years: short and thick
   thin:0.15,                // the bar at a hundred: long and drawn out
   valCells:0.66,            // the value, riding above the end of the bar
-  unitCells:0.30,           // its unit, set small beside it
+  unitCells:0.36,           // its unit, set small beside it — nudged up (Karin, 16 Aug follow-up) for readability, on decades' "years" and sixweek's end labels alike
   valGap:0.26,              // bar top -> the value's baseline box
   rubber:0.05               // how far past either end the pull may stretch
 };
@@ -5272,7 +5298,8 @@ function renderSnake(){
   html+='<button type="button" class="qsave'+A+(locked?' locked':'')+'"'
       + (locked?' disabled aria-disabled="true"':'')
       + ' style="'+cssBox(cellBox(F.save))
-      + ';font-size:'+(0.26*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">Next</button>';
+      + ';font-size:'+(0.26*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">'
+      + (q.id==='colorway'?'Create':'Next') + '</button>';
 
   qsys.innerHTML=html;
 
@@ -5530,10 +5557,8 @@ function shapeDuoMarkup(q,c,PH,W){
 const DENSITY_FILL={little:14, enough:52, plenty:100};   // fill level per side, in %
 function densityFillMarkup(q,c,PH,W){
   const rise=!!densityFillMarkup.rise;
-  /* THE SAME CIRCLE AS THE MONTH GRID, from the same function rather than a
-     size of this control's own — the answer circle is one mark across the
-     piece, and ringCircleD is the one place its diameter is decided. */
-  const d=(ringCircleD(W)*c).toFixed(1);
+  /* Its own size now — see densityCircleD — not the month grid's. */
+  const d=(densityCircleD(W)*c).toFixed(1);
   /* a FLOW child, same as the shape control — gap only, no absolute box */
   let s='<div class="qfill" style="margin-top:'+(ctrlGap(q.id)*c).toFixed(1)+'px">';
   q.options.forEach(([k,label])=>{
