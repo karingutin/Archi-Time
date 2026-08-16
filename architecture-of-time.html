@@ -512,8 +512,12 @@
     animation:latticeCellIn .24s steps(1,end) both;
     animation-delay:var(--cd)}
 
+  /* overflow:hidden because the box is now a FIXED six by three cells (see
+     NOTE_ROWS) rather than a box that grew to its text. A read that runs long
+     is cut off at the card's foot, which is why the copy banks carry a
+     three-line budget as a rule rather than as advice. */
   #hoverCard{position:fixed;z-index:20;background:var(--q-panel);
-             font-family:var(--q-face);
+             font-family:var(--q-face);overflow:hidden;
              opacity:0;transform:translateY(4px);transition:opacity .2s var(--ease),transform .2s var(--ease);
              pointer-events:none}
   #hoverCard.on{opacity:1;transform:none}
@@ -3875,6 +3879,19 @@ function dotXY(d){
    weighted right, which is the arrangement asked for. */
 const SIDE_CELLS=3;           // the margin, both sides — to the PANEL, not the marker
 const NOTE_CELLS=6;           // the hover note's width
+/* and its HEIGHT, fixed rather than hugged (Karin, 16 Aug: one row shorter, and
+   "the hover container should be limited to 6 width and 3 height"). It used to
+   grow to its text and snap up, which came out at four rows for every read in
+   the bank. Three is a real constraint on the copy, not just on the box: title
+   plus three body lines is what fits, and NOTE_TGAP below is tightened from the
+   shared Q_HGAP to buy the third of those lines. */
+const NOTE_ROWS=3;
+/* Title to body inside the note. 0.15 of a cell, against Q_HGAP's 0.218 — the
+   sum has to clear three cells: hug .411 + title .483 + THIS + 3 body lines
+   1.524 + hug .411 = 2.979. At Q_HGAP it comes to 3.047 and the third line is
+   cut off. The gap between a heading and its own body is the right place to
+   find 4px when a card gets shorter; the hug is not, because it is shared. */
+const NOTE_TGAP=0.15;
 const POSTER_SHIFT_CELLS=5;   // right of centre: questions on the left, notes on the right
 /* QUESTION_LEFT_CELLS is the PANEL's inset — see the comment on `left` in
    snakeBand for how the marker's column is derived from it.
@@ -4656,6 +4673,11 @@ const SAVE_W_ID={colorway:3};
 const saveW=q=>(q && SAVE_W_ID[q.id]) || SNAKE.save.w;
 /* and the word on it, for the same reason and by the same key */
 const saveLabel=q=>(q && q.id==='colorway') ? 'Create' : 'Next';
+/* and the size it is set at. 0.26 of a cell is the walking size — it belongs to
+   a button you press nine times without looking at it. The tenth press is the
+   one that makes the poster, and it is now set a third larger (Karin, 16 Aug),
+   which is also what the 3-cell box was widened to hold. */
+const saveFS=q=>(q && q.id==='colorway') ? 0.34 : 0.26;
 
 function snakeParts(i,j,sx,sy){
   const PH=snakeParts.h||6, PW=snakeParts.w||SNAKE.panel.w;
@@ -4857,8 +4879,13 @@ const DIAL_SIDES=5;                                // numbers each side (±3 sho
    height is unchanged (its content runs 7.18 cells of an 8-cell box, and this
    gap has ~0.8 of a cell of slack to spend before the box would round up to 9
    and hand the crop back). So every pixel the wheel steps down is a pixel more
-   of it cut off at the bottom. */
-const DIAL_GAP=Q_GAP;
+   of it cut off at the bottom.
+   Then Q_GAP + a third of a cell, on a second look ("the clock dial should go a
+   bit more down"). Written as a step OFF Q_GAP rather than as a flat 0.74 so it
+   still reads as the shared gap plus a deliberate push, and so it moves if the
+   shared gap ever does. This is 0.74 of the ~1.2 cells of slack; the panel is
+   still 8 cells. */
+const DIAL_GAP=Q_GAP+1/3;
 const DIAL={
   step:27,                              // degrees per value (mock ~0, 32, 55, 80)
   dragPerStep:0.62,                     // cells of pointer travel per value
@@ -5346,7 +5373,7 @@ function renderSnake(){
   html+='<button type="button" class="qsave'+A+(locked?' locked':'')+'"'
       + (locked?' disabled aria-disabled="true"':'')
       + ' style="'+cssBox(cellBox(F.save))
-      + ';font-size:'+(0.26*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">'
+      + ';font-size:'+(saveFS(q)*c).toFixed(1)+'px;letter-spacing:'+(0.03*c).toFixed(2)+'px">'
       + saveLabel(q) + '</button>';
 
   qsys.innerHTML=html;
@@ -7692,20 +7719,26 @@ if(DEV_SKIP){
    in the free band to the RIGHT of the sheet. Copy is written here, per question,
    from the answer plus what the profile already knows. */
 /* Short, human reads — a line about the PERSON their answer implies, not a recap of
-   the answer. Kept to two short lines; no hedging, no "based on your choice". */
+   the answer. No hedging, no "based on your choice".
+   THREE LINES IS THE BUDGET, not a style note: the card is a fixed six by three
+   cells (Karin, 16 Aug) and three lines of body is exactly what fits under the
+   title inside it. Anything longer is not clipped gracefully, it is CUT OFF, so
+   a new read has to be checked against the card, not just written. At this
+   width and size that lands at roughly 78 characters, but the wrap decides, not
+   the count — measure it. */
 const MONTH_READ={
-  January:"You settle when it’s properly cold. Sharp, fresh air suits you more than warmth ever will.",
-  February:"Cold and quiet is your comfort. You’re not waiting for spring. You’re fine right here in the grey.",
+  January:"You settle when it’s properly cold. Sharp air suits you better than warmth.",
+  February:"Cold and quiet is your comfort. You’re not waiting for spring.",
   March:"You like it cool, with change on the way. Not warm yet, and that’s the point.",
-  April:"Mild is your sweet spot. Warm enough to be out, cool enough to still think straight.",
-  May:"You want warmth without the weight: soft air, long light, nothing you have to brace for.",
+  April:"Mild is your sweet spot. Warm enough to be out, cool enough to think straight.",
+  May:"You want warmth without the weight. Soft air, long light, no bracing.",
   June:"You come alive as it warms up. Real heat, but before summer turns heavy.",
   July:"Heat wakes you up instead of wearing you down. The warmer it gets, the more you.",
-  August:"You’re built for the peak. Full heat, long days, the kind of warm most people hide from.",
-  September:"You like heat on its way out: still warm, with the first cool edge you can feel.",
-  October:"Crisp and mild is your weather. Cool enough to think, warm enough to keep moving.",
+  August:"You’re built for the peak. Full heat, long days, the warmth others hide from.",
+  September:"You like heat on its way out: still warm, with the first cool edge you feel.",
+  October:"Crisp and mild. Cool enough to think, warm enough to keep moving.",
   November:"You’re easy in the cooling grey. Bare and quiet is where you actually relax.",
-  December:"You’re most yourself when it’s cool. A short, grey, quiet day over a bright loud one, any time."
+  December:"You’re most yourself when it’s cool. A short grey day over a bright loud one."
 };
 /* one line per POSSIBLE answer — no two choices share a read */
 const ALARM_READ={
@@ -7713,7 +7746,7 @@ const ALARM_READ={
   1:"One. You take a single stretch, and then you go. That’s the whole of it.",
   2:"Two. Never one, never many. A small ritual you keep without thinking.",
   3:"Three. You’ve built the delay into the plan and set the alarm early to cover it.",
-  4:"Four. Mornings are a negotiation, and you’ve stopped pretending they aren’t.",
+  4:"Four. Mornings are a negotiation you stopped pretending to win.",
   5:"Five. You don’t wake so much as get worn down until the day wins.",
   6:"Six. Half a dozen tries, and you’ve made peace with needing a running start.",
   7:"Seven. Not really waking any more; a ritual you sleep straight through on purpose.",
@@ -7724,29 +7757,29 @@ const ALARM_READ={
   12:"Twelve, a full clock of them. Sleep isn’t a phase you exit, it’s a place you’re pulled from."
 };
 const VAC_READ={
-  '1':"One memory that never leaves. Everything else fades, but that one moment built you.",
+  '1':"One memory that never leaves. Everything else fades; that one built you.",
   '2':"Two that keep surfacing. Your whole sense of yourself hangs on those two.",
-  '3':"Three that shaped you. Enough to know who you are, few enough to hold all at once.",
+  '3':"Three that shaped you. Enough to know who you are, few enough to hold.",
   '4+':"More than a handful. Your past isn’t a blur, it’s moments you can still name."
 };
 const BORN_READ={
-  '28':"Twenty-eight, February. You started in the short month, the one that never quite fits the calendar.",
-  '29':"Twenty-nine, a leap-year February. Your month only fills out once every four years.",
-  '30':"Thirty days: April, June, September or November. One of the even, unhurried months.",
-  '31':"Thirty-one, a long month. You were born in one of the ones that takes its time."
+  '28':"Twenty-eight, February. You started in the short month, the odd one out.",
+  '29':"Twenty-nine, a leap-year February. Your month fills out once in four.",
+  '30':"Thirty days: April, June, September or November. Even and unhurried.",
+  '31':"Thirty-one, a long month. You were born in one that takes its time."
 };
 /* one line per stop on the bar — how much runway you think you have left */
 const DECADE_READ={
-  10:"One decade. You count time close and short, and you’d rather spend it than save it.",
-  20:"Two decades. Not endless, and you seem to like it that way. Enough to plan, too little to waste.",
-  30:"Three decades. A careful figure. You give yourself room without letting yourself off the hook.",
-  40:"Four decades. You picture a long middle stretch, steady and unhurried, most of it still ahead.",
-  50:"Five decades. Half a century, give or take. You treat the future as something you’ll actually live in.",
-  60:"Six decades. A generous horizon. You plan like there’s plenty, and mostly you believe it.",
-  70:"Seven decades. You bet high on time. The far end is so far off it barely feels like a limit.",
-  80:"Eight decades. You expect the long game, the kind of span that outlasts most plans you’ll make.",
-  90:"Nine decades. Near the top of the dial. You imagine yourself among the ones who really stay.",
-  100:"A full century. You’ve set the marker as far as it goes. Time, to you, is the thing that won’t run out."
+  10:"One decade. You count time short, and you’d rather spend it than save it.",
+  20:"Two decades. Enough to plan, too little to waste, and you like it so.",
+  30:"Three decades. A careful figure: room to move, and no let-off either.",
+  40:"Four decades. A long middle stretch, steady, most of it still ahead.",
+  50:"Five decades. You treat the future as somewhere you’ll actually live.",
+  60:"Six decades. A generous horizon. You plan like there’s plenty.",
+  70:"Seven decades. You bet high. The far end barely feels like a limit.",
+  80:"Eight decades. The long game, outlasting most plans you’ll make.",
+  90:"Nine decades. Near the top of the dial, among the ones who really stay.",
+  100:"A full century, the marker as far as it goes. Time won’t run out."
 };
 /* The week/weekend bar has twenty-one stops, so the read works in BANDS rather
    than one line per stop — the two ends, the two leans, and the dead centre.
@@ -7754,11 +7787,11 @@ const DECADE_READ={
    week, above 55 as the weekend), so the card's title and its line never
    disagree about which side you are on. */
 function sixweekRead(v){
-  if(v<=15) return "The week is the real thing and the weekend is a pause in it. You like your time structured, and you keep it that way.";
-  if(v<=40) return "The week carries more weight for you. Free days are good, but the shape of your time is built on the working ones.";
-  if(v<=55) return "Dead even. The plan and the pause weigh the same to you, and you won’t rank one over the other.";
-  if(v<=80) return "You tilt toward the weekend. The week runs fine, but it mostly exists to get you to the open days.";
-  return "You live for the weekend. The week is the price of it, and the free days are the point.";
+  if(v<=15) return "The week is the real thing, the weekend a pause in it. You like structure.";
+  if(v<=40) return "The week carries more weight. Free days are good, but the shape is work.";
+  if(v<=55) return "Dead even. The plan and the pause weigh the same, and you won’t rank them.";
+  if(v<=80) return "You tilt toward the weekend. The week exists to get you to the open days.";
+  return "You live for the weekend. The week is the price, the free days the point.";
 }
 function personalNote(qid){
   const D=derive();
@@ -7837,18 +7870,19 @@ function showHoverNote(qid, hl){
   const fr=frame.getBoundingClientRect(), cell=cellSize(), o=gridOrigin();
   /* type + padding measured in cells, exactly like the question cards */
   hoverCard.style.width=(NOTE_CELLS*cell).toFixed(1)+'px';
-  hoverCard.style.height='auto';
   hoverCard.style.padding=(Q_INSET*cell).toFixed(1)+'px';
   t.style.fontSize=(Q_HFS*1.15*cell).toFixed(1)+'px';
-  t.style.marginBottom=(Q_HGAP*cell).toFixed(1)+'px';
+  t.style.marginBottom=(NOTE_TGAP*cell).toFixed(1)+'px';
   b.style.fontSize=(Q_HFS*cell).toFixed(1)+'px';
   b.style.lineHeight=(Q_HLH*cell).toFixed(1)+'px';
   hoverCard.classList.add('on');
-  /* The box's natural height (title + body + padding) almost never lands on a
-     whole cell, so it used to end partway through a square — the one part of
-     this card that wasn't on the lattice. Rounded up to the next whole cell,
-     same as the question panels (see panelHeightCells). */
-  const ch=Math.ceil(hoverCard.offsetHeight/cell-0.01)*cell;
+  /* SIX BY THREE, stated rather than measured. The box used to hug its text and
+     round up, which put every read in the bank on four rows — so the card was
+     sized by whichever line happened to be longest instead of by the grid. It
+     is a fixed block now: the copy fits the card, not the other way round (see
+     the three-line budget on MONTH_READ), and overflow:hidden is what enforces
+     it. Still on the lattice, and now on it by construction. */
+  const ch=NOTE_ROWS*cell;
   hoverCard.style.height=ch.toFixed(1)+'px';
   /* PINNED TO THE RIGHT MARGIN, not to the sheet: its right edge sits SIDE_CELLS
      in from the screen's right edge, the same inset the questions take on the
@@ -7861,11 +7895,21 @@ function showHoverNote(qid, hl){
      the card's own width — and never so far left that it lands on the sheet.
      No extra cell of air off the sheet: the union already carries one, which is
      the cell the width budget hands the note (see SIDE_CELLS).
-     Shifted one further cell in from that margin (Karin): the note sat right at
-     the SIDE_CELLS inset the questions use, which read as flush with the edge
-     rather than sitting comfortably inside it. */
+     It used to be shifted one further cell OUT towards the edge, back when the
+     note read as flush with it. That cell is given back (Karin, 16 Aug: "there
+     are 3 columns gap between the poster and the hover info, it should be 2"),
+     so the note's right edge lands on the SIDE_CELLS inset exactly, the same
+     one the questions take on the far side.
+
+     WHICH OF THE TWO TERMS BINDS DEPENDS ON THE WINDOW, and that is the thing
+     to hold in mind before measuring this: on a wide, short window the poster's
+     own edge decides (minLeft wins) and the gap is already the one cell of air
+     the union carries, so this change does nothing there. On a window where the
+     board is roomier the margin decides (wantLeft wins), and the gap is however
+     many columns are left over — three before this, two now. The note is not at
+     a fixed distance from the poster, and it never was. */
   const lastLineX=phaseX+Math.floor((window.innerWidth-phaseX)/cell)*cell;
-  const wantLeft=lastLineX-(SIDE_CELLS+NOTE_CELLS)*cell+cell;
+  const wantLeft=lastLineX-(SIDE_CELLS+NOTE_CELLS)*cell;
   const minLeft =phaseX+Math.ceil((fr.right-phaseX)/cell)*cell+cell;
   const left=Math.max(wantLeft, minLeft);
   let top=phaseY+Math.round(((er.top+er.height/2)-ch/2-phaseY)/cell)*cell;
