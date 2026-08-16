@@ -76,17 +76,26 @@
      on the bounding lines, one duration and one curve shared by all of them, so
      they arrive together. No custom-property animation involved, which means it
      behaves the same in every browser that can run the rest of this file. */
-  /* --sheet-hc is the height currently SHOWN: the asking sheet, or the made one
-     with the record's two rows on the end. Switching the variable is enough to
-     transition, because what transitions is `height` — a length — and the custom
-     property only supplies its value.
-     overflow:hidden is load-bearing, not hygiene: the poster layer inside is
-     permanently two cells longer than this box (see syncSheet), and this is what
-     keeps the record out of sight until the sheet has grown to meet it. */
+  /* THE FRAME STANDS AT ITS MADE HEIGHT AT ALL TIMES, and the record's row is
+     CLIPPED off the bottom until the poster is made. Nothing about the box
+     changes when the sheet lengthens — only where it is cut.
+
+     It was written the obvious way first: the frame at the asking height, the
+     made height switched in on body.made, and `height` transitioned. That is
+     correct and it is not smooth. A height animation is a LAYOUT animation, so
+     every frame of it relaid the frame, re-resolved the two poster layers inside
+     it and re-evaluated the overflow — over an SVG carrying thousands of
+     elements, which is what made the growth judder (Karin, 17 Aug). Clipping
+     costs no layout at all: the layer is rasterised once and the cut moves.
+
+     --sheet-hc is still the height SHOWN and is still switched, because the
+     sheet's bottom bounding line is drawn off it (see .sheet-lines .h2) and that
+     is a one-pixel element that can afford to move the cheap way. */
   #frame{position:absolute;z-index:2;left:var(--sheet-x);top:var(--sheet-y);
-         width:var(--sheet-w);height:var(--sheet-hc);overflow:hidden}
-  :root{--sheet-hc:var(--sheet-h)}
-  body.made{--sheet-hc:var(--sheet-hm)}
+         width:var(--sheet-w);height:var(--sheet-hm);overflow:hidden;
+         clip-path:inset(0 0 var(--cut) 0)}
+  :root{--sheet-hc:var(--sheet-h); --cut:var(--sheet-cut)}
+  body.made{--sheet-hc:var(--sheet-hm); --cut:0px}
   /* Scoped to .morphing on purpose. The same four lengths also change when the
      window is resized, and a resize must be instant — animating the sheet
      while someone drags a window corner looks broken and lags the pointer. The
@@ -139,27 +148,40 @@
      THE POSTER IS MADE — the sheet lengthens and the record is printed.
 
      NOTHING HERE MOVES THE ARTWORK. The record is already sitting in the poster
-     layer, two cells below the foot of the sheet, from the first paint of the
+     layer, a cell below the foot of the sheet, from the first paint of the
      session; all the ending does is grow the frame down to meet it (see #frame
      and .world.growing). So there is no transform on this side at all, and the
      export needs nothing baked in either: a saved SVG carries the whole tall
      sheet, band included, exactly as the screen has it.
 
      Which leaves one thing for CSS: the writing. */
-  /* Written left to right, one letter at a time, as the sheet reaches it —
-     a record being printed, not a caption switched on. --gd is the letter's own
-     beat (baked in recordLayer); --flip is the wait for the sheet to finish
-     growing.
+  /* Swept left to right as the sheet reaches it — a record being printed, not a
+     caption switched on. --gd is the letter's own beat (baked in recordLayer).
+
+     A FADE ON --eo, NOT A HARD CUT PER LETTER, and this is the whole difference
+     between the two versions of this rule. The word layer's letters land as
+     steps(1,end) because there are nine of them at ninety-odd milliseconds
+     apart, and each one arriving whole is the point. There are three hundred
+     here, three milliseconds apart, so several land in every frame — as hard
+     cuts that is not a word being written, it is a block of text stuttering in
+     column by column (Karin, 17 Aug: "feels a bit stuck"). At .32s each, every
+     letter overlaps the hundred after it and the same delays read as one soft
+     wipe travelling across the band, on the same curve as every other entrance
+     in the piece.
+
+     IT STARTS BEFORE THE SHEET HAS FINISHED GROWING, at half the flip rather
+     than after it. Waiting for the whole 460ms put a dead beat between the two
+     halves of one movement; overlapping them makes the sheet lengthen and the
+     record arrive read as a single gesture.
+
      NO STANDALONE opacity:0, for the reason spelled out on .sglyph: the
      from-state does the hiding and `both` holds it, so prefers-reduced-motion —
      which forces animation:none — leaves every letter visible instead of
-     stranding the whole band blank. The .24s duration and the matching backoff
-     are that rule's too: a 10ms window can be stepped clean over by main-thread
-     work, and fill-mode then freezes that letter out for good. */
+     stranding the whole band blank. */
   @keyframes recordWrite{from{opacity:0}to{opacity:1}}
   body.made .ply svg .rglyph{
-    animation:recordWrite .24s steps(1,end) both;
-    animation-delay:calc(var(--flip) + var(--gd,0ms) - .24s)}
+    animation:recordWrite .32s var(--eo) both;
+    animation-delay:calc(var(--flip) * .5 + var(--gd,0ms))}
 
   /* HOVER NOTES: point at an answered layer and it stays lit while the rest of the
      poster dims, and a personal line appears beside the sheet. */

@@ -43,6 +43,36 @@ function syncSheet(){
      been earned yet. Growing the frame does not resize anything: it UNCOVERS. */
   root.style.setProperty('--sheet-hm', (F.rows+RECORD_ROWS)*c+'px');
   root.style.setProperty('--ply-h',    (F.rows+RECORD_ROWS)*c+'px');
+  /* ...and how much of that is still to be earned. The frame stands at its made
+     height at all times and the record is CLIPPED off the bottom of it until the
+     poster is made; this is the depth of that cut. See #frame. */
+  root.style.setProperty('--sheet-cut', RECORD_ROWS*c+'px');
+  placeReset();
+}
+
+/* WHERE RESET STANDS ONCE THE SHEET HAS GROWN.
+
+   It sits a little below the sheet's bottom bounding line while the asking is
+   on. The made sheet brings that line down a cell and it came to rest straight
+   through the word (Karin, 17 Aug), so past Create the label is placed against
+   the LINE instead of against the screen: its foot half a cell clear above it,
+   or where it already was, whichever is lower — on a wide window the line is far
+   enough up that nothing needs to move at all.
+
+   AN INLINE LENGTH, NOT A RULE. The resting position is CSS's and is left
+   alone — it is read once, on the first call, and becomes the floor. Only the
+   made position is written, and it is cleared again on the way out, so there is
+   exactly one place either value can come from at any moment. The transition on
+   #reset is what makes it travel rather than jump. */
+let resetRest=null;
+function placeReset(){
+  if(!resetBtn) return;
+  if(resetRest===null && !resetBtn.style.bottom)
+    resetRest=parseFloat(getComputedStyle(resetBtn).bottom)||0;
+  if(!posterDone){ resetBtn.style.bottom=''; return; }
+  const c=cellSize(), o=gridOrigin(), F=FMT(), S2=sheetCols(F);
+  const line=(o.y+S2.top*c)+(F.rows+RECORD_ROWS)*c;
+  resetBtn.style.bottom=Math.max(resetRest, window.innerHeight-line+0.5*c)+'px';
 }
 /* the format's own outline, fitted inside a cap x cap box */
 const glyph=(F,cap)=>{

@@ -54,6 +54,7 @@ function showFinish(){
   drawNow();
   growSheet();
   document.body.classList.add('made');
+  placeReset();                       // out of the way of the line coming down
   renderSnake(); renderStatus(); submit('complete');
 }
 
@@ -75,11 +76,13 @@ function growSheet(){
 function hideFinish(){
   if(!posterDone) return;
   posterDone=false;
+  growSheet();                        // the sheet shortens on the same clock
   document.body.classList.remove('made');
+  placeReset();                       // ...and the label comes back down with it
   /* the record's numbers go live again: the asking is open, and the next Create
      is a different poster with a different duration on it. No repaint is asked
-     for here on purpose — the band is fading out on the same beat the artwork
-     is coming back, and repainting mid-transition would cut both. */
+     for here on purpose — the band is being covered again as the sheet comes
+     back up, and repainting mid-transition would cut the movement. */
   unstampRecord();
   /* land on the question the Create was pressed from rather than at the end of
      a flow with nothing left open, which would draw a trail and no panel */

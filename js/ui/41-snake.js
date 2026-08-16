@@ -145,7 +145,28 @@ function snakeBand(){
      below the first, so the whole run has to end above the viewport's edge. */
   /* The deepest question's foot, measured rather than assumed — see snakeReach. */
   const need=snakeReach();
-  const jMin=Math.min(-halfH+SNAKE.top, halfH-need);
+  /* THE RUN HANGS OFF THE SHEET, NOT OFF THE TOP OF THE SCREEN, and this is the
+     one number that decides where the whole question system sits.
+
+     It used to start at the first full row on the screen (-halfH + SNAKE.top),
+     which reads as the same thing only as long as the sheet happens to start
+     around there too. It does not any more: the cell is sized so the MADE sheet
+     fits (see MAXR_FULL), so the sheet begins lower down the screen while the
+     screen's own first row is where it always was, and the mark drifted two rows
+     clear of the sheet's top line with the questions behind it.
+
+     So it is stated instead of coincidental. The mark's box is LOGO_ROWS_ABOVE
+     over the first marker and one cell tall, so putting its FOOT on the sheet's
+     top line — the bold line, the thing the eye actually lines the mark up with
+     (Karin, 17 Aug) — fixes the first marker one row under that line, and the
+     run follows from there. Any format, any window: the sheet's own top row is
+     the anchor, so this holds when the format changes too.
+
+     Both clamps stay. The screen's first row is a floor, so a very tall sheet
+     cannot push the mark off the top; the run's own reach is a ceiling, so a
+     long session still starts high enough to land its last panel on screen. */
+  const anchor=sheetCols().top-1+LOGO_ROWS_ABOVE;
+  const jMin=Math.min(Math.max(-halfH+SNAKE.top, anchor), halfH-need);
   /* THE WALK'S LANES. QUESTION_LEFT_CELLS sets the PANEL's inset on the HOME
      lane, so the home marker sits panel.dx cells further in, at
      QUESTION_LEFT_CELLS-SNAKE.panel.dx from the screen edge; the other lanes
@@ -479,8 +500,10 @@ function snakeFits(P,B){
     if(r.c<B.iMin || r.c+r.w>B.halfW) return false;
     if(r.r<B.jMin || r.r+r.h>B.halfH) return false;
     /* clear of the union: entirely left of it, right of it, above or below */
+    /* BELOW is lower than ABOVE is high, by the record's rows: the made sheet
+       grows downward and nothing may end up under it (see unionBox) */
     const clearX = (r.c+r.w<=U.cl) || (r.c>=U.cr);
-    const clearY = (r.r+r.h<=-uH) || (r.r>=uH);
+    const clearY = (r.r+r.h<=-uH) || (r.r>=uH+RECORD_ROWS);
     if(!clearX && !clearY) return false;
   }
   return true;

@@ -45,6 +45,20 @@ function buildSVG(F){
     /* the paper runs the whole length, artwork and record together: it is one
        sheet, and the band is the end of it rather than a strip stuck on */
     + '<rect width="'+B.w+'" height="'+VH+'" fill="'+C.bg+'"/>'
+    /* THE ARTWORK IS CUT WHERE IT ALWAYS WAS, at the foot of its own box, and
+       everything drawn is inside this one clip. Several layers deliberately run
+       past the sheet — the polar grid's rings reach the corners and then some,
+       the spokes with them — and until the record arrived the viewBox itself was
+       the knife. It is not any more: the viewBox now carries two more rows, and
+       without this the rings would go on drawing straight through the band.
+       The band is paper and text, nothing else (Karin, 17 Aug).
+       A clip also stops hit-testing, so the band cannot pick up a layer's hover
+       note either. FORMAT-KEYED ID, like every other def in this file: the two
+       plies both hold a full SVG during a format change, and a bare id resolves
+       to the wrong ply's clip — see the note on barLayer. */
+    + '<defs><clipPath id="artCut-'+B.w+'x'+B.h+'">'
+    +   '<rect x="0" y="0" width="'+B.w+'" height="'+B.h+'"/></clipPath></defs>'
+    + '<g clip-path="url(#artCut-'+B.w+'x'+B.h+')">'
     + (isChosen('shape') ? '<g class="hl" data-q="basegrid" style="pointer-events:none">'+baseGridLayer(C,B)+'</g>' : '')
     /* the answered layers live in .art so a hovered one can be picked out and the
        rest dimmed (see the .hl hover rules). Each layer is a single child of .art;
@@ -98,6 +112,7 @@ function buildSVG(F){
        are kept (unwired) like smoke, so the layer can be brought back with one
        line if it is ever wanted again. happiness now records but draws nothing. */
     + smokeLayer(smoke,smokeMax,S.seed,B)
+    + '</g>'
     /* THE RECORD, last of all and below everything: it is not part of the
        picture, it is what the picture was answered from. It sits in the two
        rows past the artwork's foot from the first paint of the session and is

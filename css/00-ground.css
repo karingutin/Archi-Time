@@ -308,7 +308,14 @@
          font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
          background:transparent;border:0;padding:0 0 1px;cursor:pointer;
          color:var(--chrome-ink);border-bottom:1px solid var(--chrome-line);
-         transition:color var(--flip) var(--eo),border-color var(--flip) var(--eo)}
+         transition:color var(--flip) var(--eo),border-color var(--flip) var(--eo),
+                    bottom var(--flip) var(--eo)}
+  /* THE MADE POSITION IS NOT HERE, it is written as an inline length by
+     placeReset(). The made sheet brings its bottom bounding line down a cell,
+     onto this word (Karin, 17 Aug), and where the label has to stand to clear it
+     is a function of the sheet's box — which JS already owns and CSS can only
+     reach through a chain of custom properties. The transition above is what
+     makes it travel rather than jump, on the sheet's own clock. */
   /* TWO DURATIONS ON ONE PAIR OF PROPERTIES, and the shorter one lives on the
      hover rule rather than on the base. The same two colours are moved by two
      different events: the pointer arriving, which must answer at once, and the

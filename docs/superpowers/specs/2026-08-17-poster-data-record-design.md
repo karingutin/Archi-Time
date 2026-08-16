@@ -1,7 +1,9 @@
 # The data record — design
 
 **Date:** 2026-08-17
-**Status:** approved, ready to plan
+**Status:** built. This document was rewritten after the build to say what was
+actually made; the sections on geometry and arrival went through three rounds on
+the real board and the first two versions of them are not what shipped.
 
 The finished poster gains a band along its foot carrying the session's answers as
 one run of uppercase text, the items separated by `\\`. The band sits on plain
@@ -79,15 +81,19 @@ Three items, always, in this order:
 SUN 16 AUG 13:55 2026 THE YEAR OF THE HORSE
 ```
 
-- **Average.** Seconds, rounded, over the questions that were answered. A question's
-  time runs from the moment its card opens to the moment it is banked; time spent
-  with no card open belongs to nobody and is not counted. Revisiting a question
-  adds to its own total rather than starting it over.
+- **Average.** Seconds, rounded, over the questions that were answered. A
+  question's time is the stretch between the press that banked the question
+  before it and the press that banks this one — in the panel flow the next
+  question becomes current the instant the last is banked, so there is no dead
+  time to attribute to nobody. Stepping back and re-banking adds that second
+  stretch to the same question's total.
 - **Total.** `MM:SS` from the Begin press to the Create press. Begin, not page
-  load: the wait before someone starts is not part of the experience.
+  load: the wait before someone starts is not part of the experience. Reset
+  starts a fresh clock, since it starts a fresh session.
 - **Stamp.** Day, date, month, 24h clock, year, and the Chinese zodiac animal of
-  that year, from a table of twelve keyed by `year % 12`. Taken at the Create
-  press, not at page load.
+  that year, from a table of twelve keyed by `year % 12`. Approximate by up to a
+  month, knowingly: the Chinese year turns in late January or February. Taken at
+  the Create press, not at page load.
 
 The three are written even when nothing else is: a session where every question
 was skipped still carries its own duration.
@@ -96,67 +102,87 @@ was skipped still carries its own duration.
 
 ## 2. Where the band sits
 
-The sheet's outer rectangle does not move. It is 14 x 20 cells at Sheet format
-and its four edges stay on the interface grid, as they always have.
+**The artwork does not move.** Not by a pixel, not by a per cent. This is the
+whole of the geometry and it took three attempts to arrive at.
 
-On Create:
+- The **sheet lengthens downward by one cell** at the Create press: 14 x 20
+  becomes 14 x 21 at Sheet format, and the same +1 at every other. The added row
+  is the record.
+- The **artwork keeps its box** — `B` is still `cols x rows` cells and every
+  layer measures itself against it, unchanged. The band is added to the poster's
+  **viewBox** only.
+- The artwork is **clipped at its own foot**. Several layers deliberately run
+  past the sheet (the polar grid's rings reach the corners and beyond, the spokes
+  with them), and until the band existed the viewBox itself was the knife. It is
+  not any more, so there is an explicit clip. The band is paper and text and
+  nothing else.
+- The record's **text is inset a quarter cell** left and right — under two per
+  cent of the sheet. It is the sheet's footer, not a paragraph set inside it.
 
-- The **artwork** scales **uniformly by 12/14**, anchored one cell in from the
-  sheet's top-left corner. It therefore stands one cell clear of the top, the
-  left and the right.
-- The **band** is the sheet's bottom **two rows**, full width, in the paper
-  colour. Its top edge is the artwork's cut line: the artwork runs 0.14 cell past
-  it and is clipped there, so nothing from the artwork enters the band.
-- The band's **text** is inset one cell from the left and the right, so its column
-  is 12 cells wide — the artwork's own width.
+### What this costs, and where it is paid
 
-The scale is one factor on both axes by decision. Insetting one cell on each of
-the four sides separately would mean 0.857 across and 0.9 down, and every circle
-on the sheet would come out an ellipse.
+The cell is sized so that no format can overflow the viewport, which now means
+the tallest **sheet**, band included: `MAXR_FULL = MAXR + RECORD_ROWS`. The room
+is reserved at load rather than found at the Create press, and that is exactly
+what lets the sheet grow without the grid, the mark, the dots or the questions
+shifting. It costs the asking about a twentieth of the poster's height.
 
-Cell counts are per format; every number above is `cell = w / cols`, so the band
-is two rows and the inset one column at each of the four formats.
+Two things had to follow from the smaller cell:
+
+- **`unionBox` is no longer symmetrical.** Top, left and right stay the
+  artwork's own half-heights; only the bottom is let out, by `RECORD_ROWS`.
+  Folding the band's rows into `MAXR` moved all four edges and lifted the whole
+  interface a cell clear of the sheet.
+- **The question system is anchored to the sheet, not to the top of the
+  screen.** `snakeBand()`'s first row used to be the screen's first full row,
+  which read the same only while the sheet happened to start near it. It is
+  stated now: the KAIRO mark's foot sits on the sheet's top line, which fixes
+  the first step marker one row under that line and the run follows. Both old
+  clamps stay — the screen's first row as a floor, the run's own reach as a
+  ceiling.
 
 ### Type
 
 Helvetica, the poster's one face, the same the word layer sets. Uppercase, in
-the **blue ink role**, on paper. Three lines, flush left, wrapped by measured
-advance rather than by the browser (SVG `<text>` does not wrap). **At most three
-lines**: a short run takes one or two and the block stays vertically centred in
-the band. The band's height is fixed, so the **size adapts** — the run is set at a
-nominal size, wrapped, and if it needs a fourth line the size steps down until it
-fits in three. Line pitch and the block's centring inside the two rows are
-fractions of the cell.
+the **blue ink role**, on paper, **justified** (`textLength` +
+`lengthAdjust="spacing"` on every line but the last).
+
+**At most three lines**, and the size is solved rather than set. Two things cap
+it: how many characters fit across the column, which wants fewer lines, and how
+tall the stack is, which wants more. Every line count from one to three is
+costed and the largest type wins; a candidate whose last line comes out under a
+third of the column is set aside as a widow unless nothing fuller fitted. Word
+advances are measured once at one em on a canvas and scaled, so the search costs
+one measuring pass rather than thousands inside `draw()`.
+
+At a full session's length that lands near a fifth of a cell, three lines, very
+nearly filling the one-cell band.
 
 ---
 
 ## 3. How it arrives
 
-The band is not a separate screen. It arrives on the same beat the board already
-turns over on:
+- The sheet's lengthening runs on `--flip` (460ms) with `--eo`, the same clock
+  and curve as the ground going to its negative. One movement.
+- Nothing resizes. The poster layer is **permanently one cell longer than the
+  frame** and top-anchored; `#frame`'s `overflow:hidden` is what hides the band.
+  Growing the frame does not scale anything, it **uncovers**. A layer that grew
+  with the frame would stretch the artwork for the length of the transition
+  (`preserveAspectRatio="none"`) and snap back at the end.
+- The transition is armed by a class, `.world.growing`, for the length of the
+  movement and no longer — the same pattern `.morphing` uses, and for the same
+  reason: `#frame`'s height also changes on a window resize, where it must be
+  instant.
+- The text is **swept** left to right, each letter fading over .32s on `--eo`,
+  the sweep spanning 700ms and starting at half the flip so it overlaps the
+  growth. Per-letter hard cuts (the word layer's `steps(1,end)`) read as
+  stuttering at three hundred letters three milliseconds apart.
+- Reduced motion cuts both.
+- **Back** (`hideFinish`) reverses it on the same clock.
 
-- The artwork's retreat runs on `--flip` (460ms) with `--eo`, the same duration
-  and curve as the ground going to its negative. One movement, not two: the page
-  reads as having zoomed out.
-- The text is written after the retreat lands, letter by letter, on the word
-  layer's own mechanics (`sayingDelay`, the eased sequence) so it reads as being
-  written rather than switched on.
-- Reduced motion cuts both, as it cuts the flip.
-- **Back** (`hideFinish`) reverses it: the artwork returns to full bleed and the
-  band empties, on the same beat.
-
-### Where the transform lives
-
-The retreat is a CSS transition on a `<g>` in the poster markup, driven by
-`body.made` — the class `showFinish` already sets. This keeps `showFinish`'s
-existing property that it asks for no redraw: the group is in the markup from the
-first paint carrying no transform, and the class supplies the finished one. The
-numbers are format-dependent, so they reach CSS as custom properties written by
-`syncSheet`/`relayout` (px in an SVG resolve as user units).
-
-The **export** carries no CSS, so `buildSVG` bakes the transform and the band
-inline when asked for an export. One flag, two callers (`exportSVG`,
-`exportRaster`).
+`showFinish` does ask for one redraw now — the two durations and the timestamp
+are only knowable at that press, so the band is re-set with them before the
+sheet reaches it. The artwork is not touched.
 
 ---
 
@@ -164,44 +190,45 @@ inline when asked for an export. One flag, two callers (`exportSVG`,
 
 | file | what |
 |---|---|
-| `js/app/63-record.js` *(new)* | the copy tables, `recordLine()` (the joined string), `recordLayer(B,C)` (the band's markup, including the fit-to-width measurement), and the zodiac table |
-| `js/app/51-flow.js` | the clock: start on Begin, per-question spans on `openQuestion`/bank, stamp on Create |
-| `js/poster/30-svg.js` | wrap the art in the retreat group; append `recordLayer`; the export-baking flag |
-| `css/00-ground.css` | the retreat transition and the band's write-in, beside the existing flip rules |
-| `js/app/61-relayout.js` | write the format's retreat numbers as custom properties |
-| `js/app/70-collect.js` | pass the baking flag from the three export paths |
-| `architecture-of-time.html` | one `<script>` tag for the new file |
+| `js/app/63-record.js` *(new)* | the clock, the copy tables, `recordLine()`, the fit, `recordLayer()`, the zodiac table |
+| `js/00-core.js` | `RECORD_ROWS`, and `MAXR_FULL` beside `MAXR` |
+| `js/ui/40-dots.js` | `cellSize` against `MAXR_FULL`; `unionBox` let out downward |
+| `js/ui/41-snake.js` | the run anchored to the sheet's top row; the below-clearance |
+| `js/poster/30-svg.js` | the taller viewBox, the artwork's clip, the record appended |
+| `js/app/60-format.js` | `--sheet-hm` and `--ply-h` |
+| `js/app/51-flow.js` | the stamp, the redraw, `growSheet()` |
+| `js/app/50-landing.js`, `js/app/55-reset.js` | the clock's start and its reset |
+| `js/app/53-card.js` | the per-question span, on the press that banks |
+| `js/app/70-collect.js` | the timings in `payload()`; the raster canvas sized to the whole sheet |
+| `css/10-chrome.css` | `--sheet-hc`, `#frame` overflow, `.world.growing`, `.ply`'s fixed height, the sweep |
+| `index.html` | one `<script>` tag |
 
-`63-record.js` sits in `js/app/` beside `62-hover-notes.js`, which is the other
-file holding per-answer copy. It loads before the first draw (boot is 72), which
-is all `buildSVG` needs.
+`63-record.js` sits in `js/app/` beside `62-hover-notes.js`, the other file
+holding per-answer copy. It loads before the first draw (boot is 72).
 
-The timings also go into `payload()` as `context.duration_ms` and
-`context.per_question_ms`, so the record in storage says the same thing the
-poster does.
+Nothing is baked for the export. The record is in the markup and in the viewBox
+from the first paint; what the ending changes is the **frame** it is seen
+through. So `buildSVG()` needs no export mode, and the PNG/JPEG canvas is simply
+sized to the whole sheet rather than to the artwork's box.
 
 ---
 
 ## 5. What this changes that was true before
 
-Two comments in the code state the opposite of this design and must be corrected
-rather than left to rot:
+Comments in the code that this design contradicts, corrected rather than left to
+rot:
 
 - `buildSVG`'s header: *"The poster carries no identifying text ... everything
-  identifying is kept in the data record, not on the artwork itself."* The data
-  record is now on the artwork. The claim that the poster's one piece of
-  typography is the word pair is also no longer true.
-- `showFinish`'s header: *"NOTHING ABOUT THE POSTER CHANGES HERE. Not the sheet,
-  not the format, not a single layer — no redraw is even asked for."* No redraw is
-  still asked for, but the poster does change: it retreats and gains its band.
+  identifying is kept in the data record, not on the artwork itself."* Still true
+  of the artwork; the foot is not the artwork.
+- `showFinish`'s header: *"NOTHING ABOUT THE POSTER CHANGES HERE ... no redraw is
+  even asked for."* One redraw is asked for now, and it is the record's text.
 
 ---
 
 ## 6. Out of scope
 
-- The interface chrome does not move. The KAIRO mark, the dots, the reset and the
-  status stay where the grid puts them; only the artwork inside the sheet
-  retreats. The zoomed-out feeling comes from the artwork, not from scaling the
-  board, which would take the sheet's edges off the grid.
+- The interface chrome does not move. The mark, the dots, the reset and the
+  status stay where the grid puts them.
 - No new question, no change to the bank, no change to any layer's own geometry.
 - The band does not appear during the asking. It exists only past Create.

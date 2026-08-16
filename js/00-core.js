@@ -110,25 +110,41 @@ const FMTS=Object.fromEntries(FORMATS.map(f=>[f.id,f]));
    every other format to be small enough to leave room for it. With the list
    down to four, nothing is wider than 21 cells or taller than 32, and the
    poster comes out LARGER than it ever has. */
-/* THE SHEET IS TWO ROWS TALLER ONCE THE POSTER IS MADE. Pressing Create
-   lengthens it downward by exactly this many cells, and those rows are the data
+/* THE SHEET IS ONE ROW TALLER ONCE THE POSTER IS MADE. Pressing Create
+   lengthens it downward by exactly this many cells, and that row is the data
    record (see js/app/63-record.js). The artwork does not move, does not scale
    and does not lose a millimetre: the sheet simply gets longer underneath it.
    Declared here, with the formats, because it is part of every format's real
    footprint and three other things have to know it — the cell size, the union
-   the dots keep clear of, and the poster's own viewBox. */
-const RECORD_ROWS=2;
+   the dots keep clear of, and the poster's own viewBox.
+
+   ONE ROW, DOWN FROM TWO (Karin, 17 Aug). The record is capped at three lines,
+   and three lines set across the sheet's width come out about two thirds of a
+   cell tall — so two rows left the run floating in the middle of the band with
+   half a cell of paper above and below it, reading as a caption dropped into a
+   space rather than as the end of the sheet. At one row the three lines very
+   nearly fill it, which is the proportion the reference has. */
+const RECORD_ROWS=1;
 /* the widest and the tallest format, which is what the cell size has to
    accommodate so that no format ever overflows the viewport */
-/* THE TALLEST INCLUDES THE RECORD'S TWO ROWS, and it has to: the cell is sized
-   so that no format can overflow the screen, and the tallest thing a format
-   ever is, is itself plus the band it ends with. Reserving the room here rather
-   than at the Create press is the whole reason the poster can grow without the
-   grid, the mark or anything else on the board shifting by a pixel. It costs
-   the asking a slightly smaller sheet; it buys an ending that only moves the
-   one thing that should move. */
 const MAXC=Math.max(...FORMATS.map(f=>f.cols));
-const MAXR=Math.max(...FORMATS.map(f=>f.rows))+RECORD_ROWS;
+const MAXR=Math.max(...FORMATS.map(f=>f.rows));
+/* THE SAME, PLUS THE RECORD, and the two are kept apart on purpose.
+
+   MAXR is the ARTWORK's tallest format and it is what the interface is laid out
+   against: the mark, the question panel and the dot field are all placed clear
+   of a box that MAXR sizes, and that box is symmetrical about the grid's origin.
+   The record does not make the artwork taller — it hangs BELOW it — so folding
+   its rows into MAXR pushed the whole reserved box up by a cell and took the
+   KAIRO mark off the sheet's top line with it (Karin, 17 Aug).
+
+   MAXR_FULL is the tallest a SHEET ever gets, artwork plus band, and it has
+   exactly one job: sizing the cell, so the made poster cannot overflow the
+   screen. The room is reserved at load rather than found at the Create press,
+   which is what lets the sheet grow without one thing on the board shifting.
+   Everything asymmetric about the growth is handled where it belongs — see
+   unionBox, which extends downward only. */
+const MAXR_FULL=MAXR+RECORD_ROWS;
 
 /* One grid cell, in poster units. CONSTANT — and paired with the cell counts
    above: it went 50 -> 75 when they went 21 -> 14, so the default sheet is

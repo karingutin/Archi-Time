@@ -56,8 +56,13 @@ function sheetRect(){
    marked — about one cell larger each way. It is a UNIFORM scale of the whole
    grid, so the poster and the interface grow together and every cell relationship
    (and so `touchesPoster`) is unchanged. */
+/* MAXR_FULL, not MAXR: what has to fit is the tallest SHEET, and once the
+   poster is made that is the artwork plus the record's two rows. Reserving the
+   room here means the Create press can lengthen the sheet without the cell, the
+   grid, the mark or the questions moving at all — the space was always there.
+   It costs the asking about a tenth of the poster's height. */
 const cellSize=()=>Math.min(0.94*window.innerWidth/MAXC,
-                            0.835*window.innerHeight/MAXR);
+                            0.835*window.innerHeight/MAXR_FULL);
 const syncCell=()=>root.style.setProperty('--cell', cellSize()+'px');
 /* The grid's origin: the centre of the viewport, where a line falls by
    construction. Everything on the grid is counted from here — never from the
@@ -145,10 +150,17 @@ function sheetCols(F){
 /* The largest footprint any format can take, plus a cell of air, carried with the
    same rightward shift. Nothing of the interface may enter this, so no format
    change can ever bring the poster onto a question. */
+/* AND IT IS NOT SYMMETRICAL ANY MORE. Every format is centred on the origin
+   while it is being answered, so the top, the left and the right are the
+   artwork's own half-heights as they always were — which is what keeps the
+   KAIRO mark on the sheet's top line. The record hangs BELOW the artwork, so
+   only the bottom is let out, by exactly the rows it takes. Folding those rows
+   into MAXR instead moved all four edges and lifted the whole interface a cell
+   off the poster (Karin, 17 Aug). */
 function unionBox(){
   const o=gridOrigin(), c=cellSize(), s=POSTER_SHIFT_CELLS;
   const hw=(MAXC/2+1)*c, hh=(MAXR/2+1)*c;
-  return {l:o.x-hw+s*c, r:o.x+hw+s*c, t:o.y-hh, b:o.y+hh,
+  return {l:o.x-hw+s*c, r:o.x+hw+s*c, t:o.y-hh, b:o.y+hh+RECORD_ROWS*c,
           /* in cells, for the snake */
           cl:-Math.ceil(MAXC/2+1)+s, cr:Math.ceil(MAXC/2+1)+s};
 }
