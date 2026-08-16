@@ -4469,18 +4469,29 @@ const CIRCLE_GAP=0.1;                        // gap between answer circles, in c
 const RING_COLS=4;
 const ringCircleD=W=>((W-2*Q_INSET)-(RING_COLS-1)*CIRCLE_GAP)/RING_COLS;
 const CIRCLE_D_MAX=1.6;                      // cap the circle diameter so few-option rows keep a normal gap
-/* a per-question cap, checked before the shared one — febdays lost its "Happy
-   birthday!" line, so its circles can grow back a touch into the freed room */
-/* saying is UNCAPPED on purpose: at four options the width-fit diameter is
-   exactly ringCircleD (same 4-column arithmetic), so its circles come out the
-   size of the month grid's and the density card's — one family of mark, per
-   Karin's 16 Aug direction. */
-/* vacations matches febdays' cap (Karin, 16 Aug): now that the '4' card is gone
-   (see the vacations question def), it is ALSO a four-option row at the same
-   panel width — the same width-fit diameter febdays computes, 1.9695 cells,
-   clipped by febdays' 1.82 rather than the shared 1.6. Without this override
-   the two four-option rows would size differently for no visible reason. */
-const CIRCLE_D_MAX_ID={febdays:1.82, vacations:1.82, saying:Infinity};
+/* A per-question cap, checked before the shared one, and ALL THREE CIRCLE ROWS
+   ARE NOW UNCAPPED — Karin, 16 Aug: questions 4 and 7 "should look the same
+   as 9".
+
+   They were three four-option rows in three panels of the same width, and they
+   still came out in two sizes: saying was uncapped and took the width-fit
+   diameter (1.9695, the same 4-column arithmetic as ringCircleD), while febdays
+   and vacations were clipped to 1.82 and then CENTRED, which left 0.71 of a
+   cell at each end against saying's 0.41. So the difference read twice over —
+   smaller marks, and a row that did not line up with the words above it.
+
+   Uncapped, all three compute the same 1.9695 and end exactly on Q_INSET, so
+   the row's edges meet the question's. With the vertical settle on top (see
+   SETTLE_CONTROL) the three panels come out identical: 1.9695 across, 0.41 at
+   the sides, 0.647 above and below.
+
+   Q1's rings follow, and are meant to: shapeDuoMarkup sizes itself from
+   circleCap(BANK.febdays) precisely so the ring and the answer circle can never
+   be two sizes of one mark. They grow with it, to 1.9695.
+
+   CIRCLE_D_MAX below is not dead — it is what a NEW row with fewer than four
+   options would fall to, where the width-fit diameter would come out huge. */
+const CIRCLE_D_MAX_ID={febdays:Infinity, vacations:Infinity, saying:Infinity};
 const circleCap=q=> (q && CIRCLE_D_MAX_ID[q.id]!==undefined) ? CIRCLE_D_MAX_ID[q.id] : CIRCLE_D_MAX;
 const COLORWAY_D_MAX=2.3;                     // cap the colourway swatch so its two rows fit the 7-cell panel
 /* The small line under the question. Quieter than the question in size and in
@@ -5398,12 +5409,14 @@ function renderSnake(){
 }
 
 /* WHICH CONTROLS SETTLE, by question id. Not a blanket rule and not by control
-   type: month (Q3) and saying (Q9) are the two Karin has asked to sit lower, and
-   febdays (Q4) and vacations (Q7) draw the SAME circle row as saying from the
-   same function, so keying on the markup would have moved two questions nobody
-   asked about. If they should match, add their ids here — that is the whole
-   change. */
-const SETTLE_CONTROL={month:'svg.mring', saying:'svg.vcirc'};
+   type — a question earns its place here by being asked for. month (Q3) and
+   saying (Q9) came first; febdays (Q4) and vacations (Q7) joined them when
+   Karin asked for the two remaining circle rows to match Q9 (16 Aug). Each
+   equalises the air in ITS OWN panel rather than copying a number from Q9, and
+   because all three rows are the same size in the same box they land on the
+   same 0.647 anyway. */
+const SETTLE_CONTROL={month:'svg.mring', saying:'svg.vcirc',
+                      febdays:'svg.vcirc', vacations:'svg.vcirc'};
 
 /* THE CONTROL SETTLES INTO THE MIDDLE OF THE ROOM THE WORDS LEFT.
    Karin, 16 Aug: "the circles should go a bit down so the padding above and
