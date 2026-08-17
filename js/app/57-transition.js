@@ -37,9 +37,9 @@
    by however many lines a viewport happens to have — that was tried and it is
    what produced the coasting. The film's length therefore follows the viewport
    rather than targeting a number. */
-const RUN_DUR_LINE=480;             /* ms one line takes to cross, eased out */
-const RUN_STAIR_H=6;                /* ms between one horizontal starting and the next */
-const RUN_STAIR_V=5;                /* and between one vertical and the next */
+const RUN_DUR_LINE=720;             /* ms one line takes to cross, eased out */
+const RUN_STAIR_H=8;                /* ms between one horizontal starting and the next */
+const RUN_STAIR_V=7;                /* and between one vertical and the next */
 const RUN_HEAD=2.2;                 /* the darker running tip, in CELLS */
 /* WHEN THE HORIZONTAL PASS IS OVER, and it is not when its ease arithmetically
    ends. The verticals must not begin until the horizontals are done — that was
@@ -51,13 +51,20 @@ const RUN_HEAD=2.2;                 /* the darker running tip, in CELLS */
    The gap between the two is what Karin asked to be instant, and this is it. */
 const RUN_LANDED=0.82;
 
-/* The board's arrival. ONE FRONT does all of it: the last of the four rules
-   sweeps left to right across the viewport and the whole board — the question
-   column, the mark, the paper — is simply there behind it as it passes. So
-   there is one duration here and not two, and the paper has no clock of its
-   own to drift out of step with the line beside it. */
-const ARRIVE_STAIR=90;              /* ms between one rule starting and the next */
-const ARRIVE_DUR=620;               /* ms for a rule, and the board behind it, to cross */
+/* The board's arrival. ONE FRONT sets it going: the last of the four rules
+   sweeps left to right across the viewport and the board is uncovered behind it
+   as it passes — the question column, the mark, the dots.
+
+   THE PAPER IS THE ONE THING THAT LAGS, and deliberately (Karin, 17 Aug: the
+   poster's own animation slower still). It is wiped in the same direction on
+   the same beat, but on a longer clock, so its edge trails the rule that has
+   already gone past — the sheet fills in rather than being switched on. Because
+   PAPER is well over DUR, that edge can never catch the line up. The rest of
+   the board is not given this: a question panel filling in slowly would read as
+   a loading bar, where a sheet of paper taking colour reads as paper. */
+const ARRIVE_STAIR=120;             /* ms between one rule starting and the next */
+const ARRIVE_DUR=820;               /* ms for a rule, and the board behind it, to cross */
+const ARRIVE_PAPER=1300;            /* ms for the poster's paper alone — slower, and trailing */
 const ARRIVE_BEAT=3*ARRIVE_STAIR;   /* when the last rule — and so the board — sets off */
 
 const easeOut3=p=>1-Math.pow(1-p,3);
@@ -234,6 +241,7 @@ function arriveBoard(){
      See the .arrive rules in css/10-chrome.css, which read nothing else. */
   root.style.setProperty('--arrive-stair',ARRIVE_STAIR+'ms');
   root.style.setProperty('--arrive-dur',ARRIVE_DUR+'ms');
+  root.style.setProperty('--arrive-paper',ARRIVE_PAPER+'ms');
   root.style.setProperty('--arrive-beat',ARRIVE_BEAT+'ms');
 
   /* the from-state, set while the screen still covers it: the four rules
@@ -261,8 +269,10 @@ function arriveBoard(){
        cuts in on the beat the front sets off */
     setTimeout(()=>document.body.classList.add('arrive-lit'),ARRIVE_BEAT);
     /* the film leaves nothing behind: every class it set is dropped once the
-       front is across, so none of this can reach the session that follows */
+       LAST of it is over, which is the paper and not the rules — dropping them
+       on the rules' clock would cut the sheet in whole with a third of its fill
+       still to run */
     setTimeout(()=>document.body.classList.remove('arrive','arrive-go','arrive-lit'),
-               ARRIVE_BEAT+ARRIVE_DUR+60);
+               ARRIVE_BEAT+Math.max(ARRIVE_DUR,ARRIVE_PAPER)+60);
   });
 }
