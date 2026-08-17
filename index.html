@@ -6,6 +6,18 @@
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <title>Architecture of Time</title>
+
+<!-- The mark, at 16 pixels: a K cut out of a 3 x 3 patch of the interface
+     lattice — see favicon.svg, which carries the geometry and the reasoning.
+     THE SVG COMES FIRST and the .ico second: a browser takes the first format
+     it understands, so the ones that can read SVG get the version that scales
+     and inverts under a dark scheme, and the ones that cannot fall back. The
+     two raster files are generated from the SVG's geometry by hand — run
+     tools/make-icons.py if favicon.svg ever changes. -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Wix+Madefor+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
